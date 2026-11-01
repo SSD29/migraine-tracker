@@ -464,6 +464,33 @@ textarea { resize: vertical; }
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(calc(100% - 32px), 420px);
+  padding: 10px 10px 10px 16px;
+  border-radius: 16px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.92rem;
+  font-weight: 550;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 40%);
+  animation: toast-in 0.2s ease-out;
+}
+.toast span { flex: 1; }
+.toast .btn { background: transparent; border-color: color-mix(in srgb, var(--bg) 35%, transparent); color: var(--bg); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
 .still-going {
   background: var(--note-bg);
   color: var(--note-text);

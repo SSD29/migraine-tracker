@@ -95,6 +95,11 @@ export async function endEpisode(id: string, at = nowIso()) {
   await db.episodes.update(id, { endAt: at, updatedAt: nowIso() });
 }
 
+/** Removes an episode started by mistake. */
+export async function discardEpisode(id: string) {
+  await db.episodes.delete(id);
+}
+
 /** The user confirmed a long episode is still going; ask again a day later. */
 export async function confirmOngoing(id: string) {
   await db.episodes.update(id, { confirmedAt: nowIso(), updatedAt: nowIso() });

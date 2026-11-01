@@ -4,6 +4,7 @@ import {
   addReading,
   confirmOngoing,
   db,
+  discardEpisode,
   endEpisode,
   needsStillGoingCheck,
   ongoingEpisode,
@@ -25,6 +26,8 @@ import { IntensityScale } from '../components/Chips';
 import { EpisodeItem } from '../components/EpisodeItem';
 import { Icon } from '../components/Icon';
 import { attachEpisodeWeather } from '../weather';
+
+const UNDO_MS = 8_000;
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => new Date());
@@ -105,6 +108,30 @@ export function Home({ openEpisode, openCheckin }: Props) {
   const ongoing = useLiveQuery(ongoingEpisode, []);
   const checkin = useLiveQuery(() => db.checkins.get(today), [today]);
   const recent = useLiveQuery(() => db.episodes.orderBy('startAt').reverse().limit(3).toArray(), []) ?? [];
+  const [undoId, setUndoId] = useState<string | null>(null);
+
+  // The undo offer disappears after a few seconds; "Remove" on the card stays available.
+  useEffect(() => {
+    if (!undoId) return;
+    const t = setTimeout(() => setUndoId(null), UNDO_MS);
+    return () => clearTimeout(t);
+  }, [undoId]);
+
+  const start = async () => {
+    const e = await startEpisode();
+    setUndoId(e.id);
+    attachEpisodeWeather(e.id);
+  };
+
+  const undo = async () => {
+    if (undoId) await discardEpisode(undoId);
+    setUndoId(null);
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Remove this migraine entry? Anything you added to it will be deleted.')) return;
+    await discardEpisode(id);
+  };
 
   if (ongoing === undefined) return null;
 
@@ -132,11 +159,14 @@ export function Home({ openEpisode, openCheckin }: Props) {
             <button className="btn" onClick={() => openEpisode(ongoing.id)}>
               <Icon name="pen" size={18} /> Add details
             </button>
+            <button className="btn quiet small" onClick={() => remove(ongoing.id)}>
+              Started by mistake? Remove it
+            </button>
           </div>
         </section>
       ) : (
         <section className="start">
-          <button className="hero" onClick={() => startEpisode().then((e) => attachEpisodeWeather(e.id))}>
+          <button className="hero" onClick={start}>
             <span className="hero-icon">
               <Icon name="plus" size={30} />
             </span>
@@ -149,6 +179,15 @@ export function Home({ openEpisode, openCheckin }: Props) {
             <Icon name="clock" size={18} /> Log a past migraine
           </button>
         </section>
+      )}
+
+      {undoId && ongoing?.id === undoId && (
+        <div className="toast" role="status">
+          <span>Migraine started at {fmtSince(ongoing.startAt, now)}</span>
+          <button className="btn small" onClick={undo}>
+            Undo
+          </button>
+        </div>
       )}
 
       <WeekStrip now={now} />
