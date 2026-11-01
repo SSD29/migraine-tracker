@@ -9,9 +9,21 @@ import {
   ongoingEpisode,
   startEpisode,
 } from '../db';
-import { fmtDateTime, fmtDuration, fmtSince, fromInputValue, localDateKey, nowIso, toInputValue } from '../dates';
-import { durationHours, peakIntensity } from '../insights';
+import {
+  addDays,
+  fmtDate,
+  fmtDuration,
+  fmtSince,
+  fromInputValue,
+  localDateKey,
+  nowIso,
+  parseDateKey,
+  toInputValue,
+} from '../dates';
+import { attackDayMap, intensityBand, monthRange, summarize } from '../insights';
 import { IntensityScale } from '../components/Chips';
+import { EpisodeItem } from '../components/EpisodeItem';
+import { Icon } from '../components/Icon';
 import { attachEpisodeWeather } from '../weather';
 
 function useNow(intervalMs = 30_000) {
@@ -102,69 +114,106 @@ export function Home({ openEpisode, openCheckin }: Props) {
     <div className="screen">
       {ongoing ? (
         <section className="card ongoing" aria-live="polite">
-          <h2>Migraine in progress</h2>
-          <p className="muted">
-            Since {fmtSince(ongoing.startAt, now)} ·{' '}
-            {fmtDuration((now.getTime() - Date.parse(ongoing.startAt)) / 3_600_000)}
-          </p>
+          <div className="ongoing-head">
+            <span className="live-dot" aria-hidden />
+            <span className="eyebrow">Migraine in progress</span>
+          </div>
+          <div className="timer">{fmtDuration((now.getTime() - Date.parse(ongoing.startAt)) / 3_600_000)}</div>
+          <p className="muted">Started {fmtSince(ongoing.startAt, now)}</p>
           {needsStillGoingCheck(ongoing, now) && <StillGoing id={ongoing.id} startAt={ongoing.startAt} />}
           <div className="field">
             <span className="label">How strong is it now?</span>
             <IntensityScale value={latest} onPick={(n) => addReading(ongoing.id, n)} />
           </div>
-          <div className="row">
-            <button className="btn" onClick={() => openEpisode(ongoing.id)}>
-              Add details
-            </button>
+          <div className="stack">
             <button className="btn primary" onClick={() => endEpisode(ongoing.id)}>
-              Migraine ended
+              <Icon name="stop" size={18} /> Migraine ended
+            </button>
+            <button className="btn" onClick={() => openEpisode(ongoing.id)}>
+              <Icon name="pen" size={18} /> Add details
             </button>
           </div>
         </section>
       ) : (
         <section className="start">
-          <button className="btn big primary" onClick={() => startEpisode().then((e) => attachEpisodeWeather(e.id))}>
-            Migraine started
+          <button className="hero" onClick={() => startEpisode().then((e) => attachEpisodeWeather(e.id))}>
+            <span className="hero-icon">
+              <Icon name="plus" size={30} />
+            </span>
+            <span className="hero-text">
+              <span className="hero-title">Migraine started</span>
+              <span className="hero-sub">Logs the time now. Add details whenever you're ready.</span>
+            </span>
           </button>
-          <p className="muted center">Logs the start time now. You can add details later.</p>
-          <button className="btn link" onClick={() => openEpisode('new')}>
-            Log a past migraine
+          <button className="btn quiet" onClick={() => openEpisode('new')}>
+            <Icon name="clock" size={18} /> Log a past migraine
           </button>
         </section>
       )}
 
-      <section className="card">
-        <div className="row spread">
-          <div>
-            <h2>Today's check-in</h2>
-            <p className="muted">
-              {checkin ? 'Done. Tap to update.' : 'Sleep, stress, and anything notable. About 15 seconds.'}
-            </p>
-          </div>
-          <button className="btn" onClick={() => openCheckin(today)}>
-            {checkin ? 'Edit' : 'Check in'}
-          </button>
-        </div>
-      </section>
+      <WeekStrip now={now} />
+
+      <button className="card tile" onClick={() => openCheckin(today)}>
+        <span className={`tile-icon ${checkin ? 'done' : ''}`}>
+          <Icon name={checkin ? 'check' : 'checkin'} />
+        </span>
+        <span className="tile-text">
+          <span className="tile-title">{checkin ? 'Checked in today' : "Today's check-in"}</span>
+          <span className="tile-sub">
+            {checkin ? 'Tap to review or update.' : 'Sleep, stress, and anything notable. About 15 seconds.'}
+          </span>
+        </span>
+        <Icon name="chevronRight" size={18} className="tile-chevron" />
+      </button>
 
       {recent.length > 0 && (
         <section className="card">
-          <h2>Recent episodes</h2>
-          <ul className="list">
+          <h2 className="section-title">Recent episodes</h2>
+          <ul className="ep-list">
             {recent.map((e) => (
-              <li key={e.id}>
-                <button className="list-item" onClick={() => openEpisode(e.id)}>
-                  <span>{fmtDateTime(e.startAt)}</span>
-                  <span className="muted">
-                    {e.endAt ? fmtDuration(durationHours(e)) : 'ongoing'}
-                    {peakIntensity(e) !== undefined && ` · peak ${peakIntensity(e)}/10`}
-                  </span>
-                </button>
-              </li>
+              <EpisodeItem key={e.id} episode={e} onOpen={() => openEpisode(e.id)} />
             ))}
           </ul>
         </section>
       )}
     </div>
+  );
+}
+
+/** The last seven days at a glance, plus this month's counts. */
+function WeekStrip({ now }: { now: Date }) {
+  const episodes = useLiveQuery(() => db.episodes.toArray(), []) ?? [];
+  const today = localDateKey(now);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  const map = attackDayMap(episodes, now);
+  const { from, to } = monthRange(now.getFullYear(), now.getMonth());
+  const month = summarize(episodes, from, to, now);
+
+  return (
+    <section className="card">
+      <div className="row spread">
+        <h2 className="section-title">Last 7 days</h2>
+        <span className="muted small">
+          {month.attackDays} migraine {month.attackDays === 1 ? 'day' : 'days'} this month
+        </span>
+      </div>
+      <ol className="week" aria-label="Last 7 days">
+        {days.map((d) => {
+          const has = map.has(d);
+          const peak = map.get(d);
+          return (
+            <li key={d} className={`week-day ${d === today ? 'is-today' : ''}`}>
+              <span className="week-label">{parseDateKey(d).toLocaleDateString(undefined, { weekday: 'narrow' })}</span>
+              <span
+                className={`week-dot ${has ? `band-${intensityBand(peak)}` : ''}`}
+                aria-label={`${fmtDate(d)}: ${has ? `migraine${peak !== undefined ? `, peak ${peak}` : ''}` : 'no migraine'}`}
+              >
+                {parseDateKey(d).getDate()}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }

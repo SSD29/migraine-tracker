@@ -11,16 +11,17 @@ import { Insights } from './screens/Insights';
 import { Report } from './screens/Report';
 import { Settings } from './screens/Settings';
 import { Lock } from './screens/Lock';
+import { Icon, Logo, type IconName } from './components/Icon';
 
 type Tab = 'home' | 'history' | 'insights' | 'report' | 'settings';
 type Overlay = { kind: 'episode'; id: string } | { kind: 'checkin'; date: string } | null;
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'home', label: 'Today' },
-  { id: 'history', label: 'History' },
-  { id: 'insights', label: 'Patterns' },
-  { id: 'report', label: 'Report' },
-  { id: 'settings', label: 'Settings' },
+const TABS: { id: Tab; label: string; icon: IconName; subtitle?: string }[] = [
+  { id: 'home', label: 'Today', icon: 'today' },
+  { id: 'history', label: 'History', icon: 'calendar', subtitle: 'Every episode and check-in' },
+  { id: 'insights', label: 'Patterns', icon: 'patterns', subtitle: 'What your entries show over time' },
+  { id: 'report', label: 'Report', icon: 'report', subtitle: 'A summary to share with your doctor' },
+  { id: 'settings', label: 'Settings', icon: 'settings', subtitle: 'Triggers, weather, privacy, and data' },
 ];
 
 export function App() {
@@ -43,11 +44,14 @@ export function App() {
     window.scrollTo(0, 0);
   }, [tab, overlay]);
 
+  const current = TABS.find((t) => t.id === tab)!;
+
   if (locked) return <Lock onUnlock={() => setLocked(false)} />;
 
   if (!onboarded) {
     return (
       <div className="onboarding">
+        <Logo size={64} />
         <h1>Migraine Tracker</h1>
         <p>{DISCLAIMER}</p>
         <p>
@@ -82,7 +86,11 @@ export function App() {
       ) : (
         <>
           <header className="topbar no-print">
-            <h1>{TABS.find((t) => t.id === tab)!.label}</h1>
+            <h1>{current.label}</h1>
+            <p className="topbar-sub">
+              {current.subtitle ??
+                new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
           </header>
           <main>
             {tab === 'home' && <Home openEpisode={openEpisode} openCheckin={openCheckin} />}
@@ -94,7 +102,8 @@ export function App() {
           <nav className="tabbar no-print" aria-label="Main">
             {TABS.map((t) => (
               <button key={t.id} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-                {t.label}
+                <Icon name={t.icon} size={22} />
+                <span>{t.label}</span>
               </button>
             ))}
           </nav>

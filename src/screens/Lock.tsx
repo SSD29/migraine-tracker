@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { checkPin } from '../lock';
+import { Logo } from '../components/Icon';
 
 export function Lock({ onUnlock }: { onUnlock: () => void }) {
   const [pin, setPin] = useState('');
@@ -16,6 +17,7 @@ export function Lock({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <form className="lock" onSubmit={submit}>
+      <Logo size={56} />
       <h1>Migraine Tracker</h1>
       <label className="field">
         <span className="label">Enter your PIN</span>

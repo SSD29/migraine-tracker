@@ -17,6 +17,7 @@ import {
   weatherStats,
 } from '../insights';
 import { weatherEnabled } from '../weather';
+import { Icon } from '../components/Icon';
 import { useFactors } from '../components/FactorPicker';
 import type { DailyCheckin, Episode, Factor } from '../types';
 
@@ -44,11 +45,11 @@ export function Insights() {
       <section className="card">
         <div className="row spread">
           <button className="btn icon" aria-label="Previous month" onClick={() => move(-1)}>
-            ‹
+            <Icon name="chevronLeft" size={20} />
           </button>
           <h2>{new Date(cursor.y, cursor.m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h2>
           <button className="btn icon" aria-label="Next month" onClick={() => move(1)} disabled={isCurrentMonth}>
-            ›
+            <Icon name="chevronRight" size={20} />
           </button>
         </div>
         <div className="stats">

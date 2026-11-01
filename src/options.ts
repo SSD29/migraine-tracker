@@ -95,6 +95,8 @@ export const PRESET_FACTORS: { name: string; category: string }[] = [
   { name: 'Red wine', category: 'Alcohol' },
   { name: 'Other alcohol', category: 'Alcohol' },
   { name: 'Skipped meal', category: 'Meals' },
+  { name: 'Long gap between meals', category: 'Meals' },
+  { name: 'Unusual meal times', category: 'Meals' },
   { name: 'Period', category: 'Menstrual cycle' },
   { name: 'Ovulation', category: 'Menstrual cycle' },
   { name: 'Weather change', category: 'Weather' },

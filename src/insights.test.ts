@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankCheckin, blankEpisode } from './db';
+import { blankCheckin, blankEpisode, missingPresets } from './db';
 import {
   attackDayMap,
   episodeDays,
@@ -121,6 +121,24 @@ describe('startPatterns', () => {
     const p = startPatterns([episode(at(2026, 10, 5, 7), null), episode(at(2026, 10, 5, 23), null)]);
     expect(p.byWeekday[1]).toBe(2);
     expect(p.byTime).toEqual([0, 1, 0, 1]);
+  });
+});
+
+describe('missingPresets', () => {
+  it('adds new presets after their category peers and skips ones the user already has', () => {
+    const existing: Factor[] = [
+      { ...factor('a', 'Skipped meal'), category: 'Meals', order: 13 },
+      { ...factor('b', 'Period'), category: 'Menstrual cycle', order: 14 },
+      { ...factor('c', 'long gap between meals'), category: 'Meals', order: 30, isCustom: true },
+    ];
+    const added = missingPresets(existing);
+    const names = added.map((f) => f.name);
+    expect(names).toContain('Unusual meal times');
+    expect(names).not.toContain('Long gap between meals'); // user already made it
+    expect(names).not.toContain('Skipped meal');
+    const unusual = added.find((f) => f.name === 'Unusual meal times')!;
+    expect(unusual).toMatchObject({ category: 'Meals', isCustom: false, hidden: false });
+    expect(unusual.order).toBeGreaterThan(30);
   });
 });
 

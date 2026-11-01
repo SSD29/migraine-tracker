@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { fmtDate, fmtDateTime, fmtDuration, localDateKey } from '../dates';
-import { attackDayMap, durationHours, episodeDays, intensityBand, peakIntensity } from '../insights';
+import { fmtDate, localDateKey } from '../dates';
+import { attackDayMap, episodeDays, intensityBand, peakIntensity } from '../insights';
 import { useFactors } from '../components/FactorPicker';
+import { EpisodeItem } from '../components/EpisodeItem';
+import { Icon } from '../components/Icon';
 import type { Episode } from '../types';
 
 interface Props {
@@ -36,22 +38,6 @@ export function History({ openEpisode, openCheckin }: Props) {
   );
 }
 
-function EpisodeRow({ e, onOpen }: { e: Episode; onOpen: () => void }) {
-  const peak = peakIntensity(e);
-  return (
-    <li>
-      <button className="list-item" onClick={onOpen}>
-        <span>{fmtDateTime(e.startAt)}</span>
-        <span className="muted">
-          {e.endAt ? fmtDuration(durationHours(e)) : 'ongoing'}
-          {peak !== undefined && ` · peak ${peak}/10`}
-          {e.aura === 'yes' && ' · aura'}
-        </span>
-      </button>
-    </li>
-  );
-}
-
 function Calendar({ episodes, openEpisode, openCheckin }: { episodes: Episode[] } & Props) {
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
@@ -79,11 +65,11 @@ function Calendar({ episodes, openEpisode, openCheckin }: { episodes: Episode[] 
     <section className="card">
       <div className="row spread">
         <button className="btn icon" aria-label="Previous month" onClick={() => move(-1)}>
-          ‹
+          <Icon name="chevronLeft" size={20} />
         </button>
         <h2>{first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h2>
         <button className="btn icon" aria-label="Next month" onClick={() => move(1)}>
-          ›
+          <Icon name="chevronRight" size={20} />
         </button>
       </div>
       <div className="calendar" role="grid">
@@ -125,9 +111,9 @@ function Calendar({ episodes, openEpisode, openCheckin }: { episodes: Episode[] 
         <div className="picked">
           <h3>{fmtDate(picked)}</h3>
           {pickedEpisodes.length === 0 && <p className="muted">No migraine logged.</p>}
-          <ul className="list">
+          <ul className="ep-list">
             {pickedEpisodes.map((e) => (
-              <EpisodeRow key={e.id} e={e} onOpen={() => openEpisode(e.id)} />
+              <EpisodeItem key={e.id} episode={e} onOpen={() => openEpisode(e.id)} />
             ))}
           </ul>
           <button className="btn" onClick={() => openCheckin(picked)}>
@@ -203,15 +189,15 @@ function EpisodeList({ episodes, openEpisode }: { episodes: Episode[]; openEpiso
         </div>
       </details>
       <section className="card">
-        <h2>
+        <h2 className="section-title">
           {filtered.length} {filtered.length === 1 ? 'episode' : 'episodes'}
         </h2>
         {filtered.length === 0 ? (
           <p className="muted">Nothing logged{episodes.length ? ' matches these filters' : ' yet'}.</p>
         ) : (
-          <ul className="list">
+          <ul className="ep-list">
             {filtered.map((e) => (
-              <EpisodeRow key={e.id} e={e} onOpen={() => openEpisode(e.id)} />
+              <EpisodeItem key={e.id} episode={e} onOpen={() => openEpisode(e.id)} />
             ))}
           </ul>
         )}

@@ -15,10 +15,35 @@ class MigraineDB extends Dexie {
       factors: 'id, order',
       checkins: 'date',
     });
+    // v2: adds presets introduced after launch (meal timing) to existing installs.
+    this.version(2)
+      .stores({})
+      .upgrade(async (tx) => {
+        const factors = tx.table<Factor, string>('factors');
+        await factors.bulkAdd(missingPresets(await factors.toArray()));
+      });
     this.on('populate', (tx) => {
       tx.table('factors').bulkAdd(presetFactors());
     });
   }
+}
+
+/**
+ * Presets the user doesn't have yet (matched by name), each placed after the
+ * last existing factor in its category so it shows up in the right group.
+ */
+export function missingPresets(existing: Factor[]): Factor[] {
+  const names = new Set(existing.map((f) => f.name.toLowerCase()));
+  const added: Factor[] = [];
+  for (const p of PRESET_FACTORS) {
+    if (names.has(p.name.toLowerCase())) continue;
+    const peers = [...existing, ...added].filter((f) => f.category === p.category);
+    const order = peers.length
+      ? Math.max(...peers.map((f) => f.order)) + 0.01
+      : Math.max(-1, ...existing.map((f) => f.order)) + 1;
+    added.push({ id: newId(), name: p.name, category: p.category, isCustom: false, hidden: false, order });
+  }
+  return added;
 }
 
 export const db = new MigraineDB();
@@ -125,6 +150,7 @@ export async function restoreBackup(data: unknown) {
     await Promise.all([db.episodes.clear(), db.factors.clear(), db.checkins.clear()]);
     await db.episodes.bulkAdd(b.episodes!);
     await db.factors.bulkAdd(b.factors!);
+    await db.factors.bulkAdd(missingPresets(b.factors!)); // backups made before newer presets existed
     await db.checkins.bulkAdd(b.checkins!);
   });
 }

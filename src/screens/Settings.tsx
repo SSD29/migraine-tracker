@@ -42,7 +42,7 @@ function FactorSettings() {
   };
 
   const rename = async (f: Factor) => {
-    const next = prompt('Rename factor', f.name)?.trim();
+    const next = prompt('Rename trigger', f.name)?.trim();
     if (next) await db.factors.update(f.id, { name: next });
   };
 
@@ -59,10 +59,10 @@ function FactorSettings() {
 
   return (
     <section className="card">
-      <h2>Your factors</h2>
+      <h2>Possible triggers</h2>
       <p className="muted">Add your own, rename, reorder, or hide ones that don't apply.</p>
       <div className="row wrap">
-        <input type="text" aria-label="New factor name" placeholder="New factor" value={name} onChange={(e) => setName(e.target.value)} />
+        <input type="text" aria-label="New trigger name" placeholder="Add your own" value={name} onChange={(e) => setName(e.target.value)} />
         <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
           {CATEGORIES.map((c) => (
             <option key={c}>{c}</option>
@@ -73,7 +73,7 @@ function FactorSettings() {
         </button>
       </div>
       <details className="factor-manage">
-        <summary>Manage all {factors.length} factors</summary>
+        <summary>Manage all {factors.length} triggers</summary>
         {groupFactors(factors).map(([cat, items]) => (
           <div key={cat} className="factor-group">
             <div className="factor-category">{cat}</div>
