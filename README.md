@@ -20,16 +20,17 @@ To use it on a phone, deploy `dist/` to any static host with HTTPS, open it in S
 - `src/insights.ts` holds the counting logic (attack days, factor frequency, time patterns) as pure, tested functions.
 - Guardrail copy (disclaimer, safety note, insight note) lives in `src/options.ts`. Change it only after a guardrail review.
 - `src/weather.ts` looks up weather from [Open-Meteo](https://open-meteo.com) (free, no key, non-commercial use) when the user turns it on. Only a rounded location (about 10 km) and the entry's time are sent.
-- `src/ai/` holds the optional AI features (Claude, via `@anthropic-ai/sdk`). See below.
+- `src/ai/` holds the optional AI features (Gemini via `@google/genai`, or Claude via `@anthropic-ai/sdk`). See below.
 - `public/sw.js` caches the app shell so it opens offline (production builds only).
 
 ## AI features
 
-Optional, and off until the user pastes their own Anthropic API key in Settings. The key stays in this browser's localStorage and is never in backups. The SDK is loaded only when a feature is used.
+Optional, and off until the user picks a service and pastes their own API key in Settings: Gemini (free key from aistudio.google.com, model `gemini-flash-latest`) or Claude (paid key from console.anthropic.com, model `claude-opus-5-5`). The key stays in this browser's localStorage and is never in backups. Both providers sit behind one small interface, `AiProvider` in `src/ai/client.ts`, and only the chosen provider's SDK is loaded, when a feature is used.
 
-- **Describe a migraine in words** (`src/ai/extract.ts`, `src/ai/describe.ts`): the description goes to `claude-opus-5-5` with a structured-output schema built from the app's own option lists and the user's trigger names, so the reply always fits the form. `draftFromExtraction` turns it into an unsaved draft (clamping intensity, keeping times in the past, allowing only one ongoing episode); the user checks it in the episode form before saving.
+- **Describe a migraine in words** (`src/ai/extract.ts`, `src/ai/describe.ts`): the description goes to the model with a JSON schema built from the app's own option lists and the user's trigger names, so the reply fits the form. Claude enforces the schema itself; Gemini's reply is checked against the same zod schema in `src/ai/gemini.ts`. `draftFromExtraction` turns it into an unsaved draft (clamping intensity, keeping times in the past, allowing only one ongoing episode); the user checks it in the episode form before saving.
 - **Weekly reflection** (`src/ai/reflect.ts`, `src/ai/reflection.ts`): the last 7 days of episodes and check-ins become a plain-text log; the reply streams in word by word. The system prompt bans causal claims, diagnosis, medication or dose comments, judgements about frequency, and advice. The last reflection is cached on the device.
-- Both requests opt into server-side refusal fallbacks (`fallbacks: "default"`). Errors map to plain messages in `src/ai/client.ts`.
+- On Claude, both requests opt into server-side refusal fallbacks (`fallbacks: "default"`). Each provider maps its own errors to plain messages (`src/ai/claude.ts`, `src/ai/gemini.ts`).
+- Privacy: on Gemini's free tier Google may use requests to improve its products; the Settings card says so.
 - Pure parts are unit-tested in `src/ai/ai.test.ts`; network calls are not tested automatically.
 
 Calling the API from the browser with the user's own key is fine for a personal app. A shared app would put the key behind a small server instead.

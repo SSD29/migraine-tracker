@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { fmtDate, fmtDuration, fmtSince } from '../dates';
 import { storage } from '../lock';
-import { AI_NOTE, aiEnabled } from '../ai/key';
+import { AI_NOTE, aiCompany, aiEnabled } from '../ai/key';
 import { reflectionWindow } from '../ai/reflect';
 import { INSIGHT_NOTE } from '../options';
 import {
@@ -236,7 +236,7 @@ function WeeklyReflection() {
       setSaved(next);
     } catch (err) {
       const { aiErrorMessage } = await import('../ai/client');
-      setError(aiErrorMessage(err));
+      setError(await aiErrorMessage(err));
     } finally {
       setStreaming(null);
     }
@@ -272,7 +272,7 @@ function WeeklyReflection() {
         {streaming !== null ? 'Writing…' : current ? 'Write again' : 'Write my weekly reflection'}
       </button>
       <p className="muted small">
-        {shown && `${AI_NOTE} `}Writing it sends these 7 days of entries, including notes, to Anthropic.
+        {shown && `${AI_NOTE} `}Writing it sends these 7 days of entries, including notes, to {aiCompany()}.
       </p>
     </section>
   );

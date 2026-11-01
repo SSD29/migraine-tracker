@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { aiCompany } from '../ai/key';
 import type { Episode } from '../types';
 
 interface Props {
@@ -23,7 +24,7 @@ export function Describe({ onDraft, onClose }: Props) {
       onDraft(await describeEpisode(text.trim()), text.trim());
     } catch (err) {
       const { aiErrorMessage } = await import('../ai/client');
-      setError(aiErrorMessage(err));
+      setError(await aiErrorMessage(err));
       setBusy(false);
     }
   };
@@ -63,7 +64,7 @@ export function Describe({ onDraft, onClose }: Props) {
           {busy ? 'Reading your description…' : 'Fill in the form'}
         </button>
         <p className="muted small">
-          Your description is sent to Anthropic's AI to fill in the form. Nothing is saved until you check it and tap
+          Your description is sent to {aiCompany()}'s AI to fill in the form. Nothing is saved until you check it and tap
           Save.
         </p>
       </section>

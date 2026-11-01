@@ -7,7 +7,7 @@ import { downloadFile } from '../csv';
 import { clearPin, hasPin, setPin, validPin } from '../lock';
 import { fetchWeather, fillMissingWeather, getLocation, setWeatherEnabled, weatherEnabled } from '../weather';
 import { groupFactors, useFactors } from '../components/FactorPicker';
-import { aiEnabled, clearApiKey, getApiKey, setApiKey } from '../ai/key';
+import { PROVIDERS, aiEnabled, clearApiKey, getApiKey, getProvider, setApiKey, type Provider } from '../ai/key';
 import type { Factor, Medication } from '../types';
 
 export function Settings({ onLockNow }: { onLockNow: () => void }) {
@@ -247,26 +247,28 @@ function WeatherSettings() {
 
 function AiSettings() {
   const [enabled, setEnabled] = useState(aiEnabled());
+  const [choice, setChoice] = useState<Provider>(aiEnabled() ? getProvider() : 'gemini');
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const p = PROVIDERS[choice];
 
   const save = async () => {
     setBusy(true);
     setMessage('Checking the key…');
-    const previous = getApiKey();
-    setApiKey(key);
+    const previous = enabled ? { provider: getProvider(), key: getApiKey()! } : null;
+    setApiKey(choice, key);
+    const { testApiKey, aiErrorMessage } = await import('../ai/client');
     try {
-      const { testApiKey } = await import('../ai/client');
       await testApiKey();
       setEnabled(true);
       setKey('');
-      setMessage('AI features are on.');
+      setMessage(`AI features are on, using ${p.model}.`);
     } catch (err) {
-      const { aiErrorMessage } = await import('../ai/client');
-      if (previous) setApiKey(previous); // keep the key that worked
+      const msg = await aiErrorMessage(err);
+      if (previous) setApiKey(previous.provider, previous.key); // keep the key that worked
       else clearApiKey();
-      setMessage(aiErrorMessage(err));
+      setMessage(msg);
     } finally {
       setBusy(false);
     }
@@ -284,12 +286,26 @@ function AiSettings() {
       <h2>AI features</h2>
       <p className="muted">
         Describe a migraine in your own words and have the form filled in for you to check, and get a short reflection
-        on your week on the Patterns page. Uses Claude, by Anthropic.
+        on your week on the Patterns page.
       </p>
+      {enabled && (
+        <p>
+          Using {PROVIDERS[getProvider()].model}, by {PROVIDERS[getProvider()].company}.
+        </p>
+      )}
+      <label className="field">
+        <span>{enabled ? 'Switch or replace key' : 'AI service'}</span>
+        <select value={choice} onChange={(e) => setChoice(e.target.value as Provider)} disabled={busy}>
+          <option value="gemini">Gemini, by Google</option>
+          <option value="anthropic">Claude, by Anthropic</option>
+        </select>
+      </label>
       <p className="muted small">
-        Needs your own Anthropic API key (from console.anthropic.com), which is stored only on this device and never in
-        backups. When you use an AI feature, the text you typed or that week's entries are sent to Anthropic. Each use
-        costs a cent or two on your Anthropic account. AI never diagnoses or suggests medications or doses.
+        {choice === 'gemini'
+          ? 'Get a free key at aistudio.google.com. The free tier has daily limits, and Google may use what you send on it to improve its products, with people reviewing some of it.'
+          : 'Get a key at console.anthropic.com. Each use costs a cent or two on your Anthropic account.'}{' '}
+        Your key is stored only on this device and never in backups. When you use an AI feature, the text you typed or
+        that week's entries are sent to {p.company}. AI never diagnoses or suggests medications or doses.
       </p>
       {message && (
         <p className="muted" role="status">
@@ -300,8 +316,8 @@ function AiSettings() {
         <input
           type="password"
           autoComplete="off"
-          aria-label="Anthropic API key"
-          placeholder={enabled ? 'Replace key (sk-ant-…)' : 'Paste your key (sk-ant-…)'}
+          aria-label={`${p.model} API key`}
+          placeholder={`Paste your ${p.model} key (${p.keyHint})`}
           value={key}
           onChange={(e) => setKey(e.target.value)}
         />
