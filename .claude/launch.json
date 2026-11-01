@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "migraine-tracker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "pages-preview",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["BASE_PATH=/migraine-tracker/", "npx", "vite", "preview", "--port", "4173", "--strictPort"],
+      "port": 4173
+    }
+  ]
+}

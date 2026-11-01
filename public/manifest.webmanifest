@@ -1,0 +1,11 @@
+{
+  "name": "Migraine Tracker",
+  "short_name": "Migraine",
+  "description": "A private log of migraine episodes and possible triggers.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14161c",
+  "theme_color": "#14161c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
