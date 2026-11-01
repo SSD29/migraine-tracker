@@ -1,5 +1,7 @@
 import type { DailyCheckin, Episode, Factor, WeatherSnapshot } from './types';
-import { AURA, AURA_TYPES, IMPACTS, LOCATIONS, QUALITIES, RELIEF_RATINGS, SYMPTOMS, labelOf } from './options';
+import { AURA, AURA_TYPES, IMPACTS, LOCATIONS, QUALITIES, SYMPTOMS, labelOf } from './options';
+import { isMedication } from './db';
+import { describeRelief, medicationStatus } from './relief';
 import { durationHours, peakIntensity } from './insights';
 
 type Cell = string | number | undefined | null;
@@ -27,7 +29,8 @@ const weatherCells = (w: WeatherSnapshot | undefined): Cell[] =>
 export function episodesCsv(episodes: Episode[], factors: Factor[]) {
   const header = [
     'Start', 'End', 'Time zone', 'Duration (hours)', 'Peak intensity (0-10)', 'Intensity readings',
-    'Location', 'Quality', 'Aura', 'Aura type', 'Symptoms', 'Impact', 'Relief (as entered)',
+    'Location', 'Quality', 'Aura', 'Aura type', 'Symptoms', 'Impact',
+    'Medication taken', 'Medication (as entered)', 'Other relief (as entered)',
     'Factors (24h before)', 'Notes', ...WEATHER_HEADER,
   ];
   const rows = episodes.map((e) => {
@@ -45,7 +48,9 @@ export function episodesCsv(episodes: Episode[], factors: Factor[]) {
       labels(e.auraTypes, AURA_TYPES),
       labels(e.symptoms, SYMPTOMS),
       labelOf(IMPACTS, e.impact),
-      e.relief.map((r) => `${r.item} at ${r.takenAt}${r.rating ? ` (${labelOf(RELIEF_RATINGS, r.rating)})` : ''}`).join('; '),
+      medicationStatus(e) === 'yes' ? 'Yes' : medicationStatus(e) === 'no' ? 'No' : '',
+      describeRelief(e.relief.filter(isMedication), (iso) => iso),
+      describeRelief(e.relief.filter((r) => !isMedication(r)), (iso) => iso),
       names(e.factorIds, factors),
       e.notes,
       ...weatherCells(e.weather),

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db';
-import { addDays, fmtDateTime, fmtDuration, localDateKey, parseDateKey } from '../dates';
-import { AURA, IMPACTS, RELIEF_RATINGS, SYMPTOMS, DISCLAIMER, labelOf } from '../options';
+import { db, isMedication } from '../db';
+import { describeRelief, medicationStatus } from '../relief';
+import { addDays, fmtDateTime, fmtDuration, fmtTime, localDateKey, parseDateKey } from '../dates';
+import { AURA, IMPACTS, SYMPTOMS, DISCLAIMER, labelOf } from '../options';
 import { durationHours, insightsReadiness, peakIntensity, summarize } from '../insights';
 import { checkinsCsv, downloadFile, episodesCsv } from '../csv';
 import { useFactors } from '../components/FactorPicker';
@@ -75,6 +76,8 @@ export function Report() {
             <tr><th scope="row">Days with a migraine</th><td className="num">{s.attackDays} of {s.daysCovered}</td></tr>
             <tr><th scope="row">Average duration (completed episodes)</th><td className="num">{fmtDuration(s.avgDurationHours)}</td></tr>
             <tr><th scope="row">Average peak intensity</th><td className="num">{s.avgPeak === undefined ? '—' : `${s.avgPeak.toFixed(1)}/10`}</td></tr>
+            <tr><th scope="row">Episodes with medication taken</th><td className="num">{episodes.filter((e) => medicationStatus(e) === 'yes').length}</td></tr>
+            <tr><th scope="row">Episodes with no medication</th><td className="num">{episodes.filter((e) => medicationStatus(e) === 'no').length}</td></tr>
             <tr><th scope="row">Episodes with aura</th><td className="num">{episodes.filter((e) => e.aura === 'yes').length}</td></tr>
             <tr><th scope="row">Daily check-ins</th><td className="num">{checkins.length}</td></tr>
           </tbody>
@@ -94,7 +97,8 @@ export function Report() {
                   <th scope="col">Aura</th>
                   <th scope="col">Symptoms</th>
                   <th scope="col">Impact</th>
-                  <th scope="col">Relief (as entered)</th>
+                  <th scope="col">Medication (as entered)</th>
+                  <th scope="col">Other relief</th>
                   <th scope="col">Factors before</th>
                   {showWeather && <th scope="col">Pressure change before</th>}
                 </tr>
@@ -109,10 +113,13 @@ export function Report() {
                     <td>{e.symptoms.map((v) => labelOf(SYMPTOMS, v)).join(', ') || '—'}</td>
                     <td>{labelOf(IMPACTS, e.impact) || '—'}</td>
                     <td>
-                      {e.relief.length
-                        ? e.relief.map((r) => `${r.item}${r.rating ? ` (${labelOf(RELIEF_RATINGS, r.rating).toLowerCase()})` : ''}`).join('; ')
-                        : '—'}
+                      {medicationStatus(e) === 'yes'
+                        ? describeRelief(e.relief.filter(isMedication), fmtTime) || 'Yes'
+                        : medicationStatus(e) === 'no'
+                          ? 'None'
+                          : '—'}
                     </td>
+                    <td>{describeRelief(e.relief.filter((r) => !isMedication(r))) || '—'}</td>
                     <td>{e.factorIds.map(factorName).join(', ') || '—'}</td>
                     {showWeather && <td>{fmtPressureChange(e.weather?.pressureChange24h) || '—'}</td>}
                   </tr>

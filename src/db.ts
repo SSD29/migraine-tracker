@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { DailyCheckin, Episode, Factor } from './types';
+import type { DailyCheckin, Episode, Factor, Medication, ReliefEntry } from './types';
 import { PRESET_FACTORS } from './options';
 import { nowIso, userTimeZone } from './dates';
 
@@ -7,6 +7,7 @@ class MigraineDB extends Dexie {
   episodes!: Table<Episode, string>;
   factors!: Table<Factor, string>;
   checkins!: Table<DailyCheckin, string>;
+  medications!: Table<Medication, string>;
 
   constructor() {
     super('migraine-tracker');
@@ -22,6 +23,8 @@ class MigraineDB extends Dexie {
         const factors = tx.table<Factor, string>('factors');
         await factors.bulkAdd(missingPresets(await factors.toArray()));
       });
+    // v3: the user's own medication list, for one-tap logging.
+    this.version(3).stores({ medications: 'id, order' });
     this.on('populate', (tx) => {
       tx.table('factors').bulkAdd(presetFactors());
     });
@@ -95,6 +98,41 @@ export async function endEpisode(id: string, at = nowIso()) {
   await db.episodes.update(id, { endAt: at, updatedAt: nowIso() });
 }
 
+export const isMedication = (r: ReliefEntry) => r.kind === 'medication';
+
+/** Adds names to the user's medication list if they aren't there yet (case-insensitive). */
+export async function rememberMedications(names: string[]) {
+  const existing = await db.medications.toArray();
+  const known = new Set(existing.map((m) => m.name.trim().toLowerCase()));
+  let order = Math.max(-1, ...existing.map((m) => m.order));
+  const added: Medication[] = [];
+  for (const raw of names) {
+    const name = raw.trim();
+    if (!name || known.has(name.toLowerCase())) continue;
+    known.add(name.toLowerCase());
+    added.push({ id: newId(), name, order: ++order });
+  }
+  if (added.length) await db.medications.bulkAdd(added);
+}
+
+/** One-tap "took this medication now" from the in-progress card. Returns the entry id for undo. */
+export async function logMedication(episodeId: string, name: string) {
+  const e = await db.episodes.get(episodeId);
+  if (!e) return null;
+  const entry: ReliefEntry = { id: newId(), kind: 'medication', item: name, takenAt: nowIso() };
+  await db.episodes.update(episodeId, { relief: [...e.relief, entry], tookMedication: true, updatedAt: nowIso() });
+  return entry.id;
+}
+
+export async function removeReliefEntry(episodeId: string, entryId: string) {
+  const e = await db.episodes.get(episodeId);
+  if (!e) return;
+  const relief = e.relief.filter((r) => r.id !== entryId);
+  // With no medication left, go back to "not answered" (keeping an explicit "no").
+  const tookMedication = relief.some(isMedication) ? true : e.tookMedication === false ? false : undefined;
+  await db.episodes.update(episodeId, { relief, tookMedication, updatedAt: nowIso() });
+}
+
 /** Removes an episode started by mistake. */
 export async function discardEpisode(id: string) {
   await db.episodes.delete(id);
@@ -134,15 +172,17 @@ export interface Backup {
   episodes: Episode[];
   factors: Factor[];
   checkins: DailyCheckin[];
+  medications?: Medication[]; // added in v3; older backups don't have it
 }
 
 export async function exportBackup(): Promise<Backup> {
-  const [episodes, factors, checkins] = await Promise.all([
+  const [episodes, factors, checkins, medications] = await Promise.all([
     db.episodes.toArray(),
     db.factors.toArray(),
     db.checkins.toArray(),
+    db.medications.toArray(),
   ]);
-  return { app: 'migraine-tracker', version: 1, exportedAt: nowIso(), episodes, factors, checkins };
+  return { app: 'migraine-tracker', version: 1, exportedAt: nowIso(), episodes, factors, checkins, medications };
 }
 
 /** Replaces everything on this device with the backup's contents. */
@@ -151,19 +191,20 @@ export async function restoreBackup(data: unknown) {
   if (b?.app !== 'migraine-tracker' || !Array.isArray(b.episodes) || !Array.isArray(b.factors) || !Array.isArray(b.checkins)) {
     throw new Error('This file is not a Migraine Tracker backup.');
   }
-  await db.transaction('rw', db.episodes, db.factors, db.checkins, async () => {
-    await Promise.all([db.episodes.clear(), db.factors.clear(), db.checkins.clear()]);
+  await db.transaction('rw', [db.episodes, db.factors, db.checkins, db.medications], async () => {
+    await Promise.all([db.episodes.clear(), db.factors.clear(), db.checkins.clear(), db.medications.clear()]);
     await db.episodes.bulkAdd(b.episodes!);
     await db.factors.bulkAdd(b.factors!);
     await db.factors.bulkAdd(missingPresets(b.factors!)); // backups made before newer presets existed
     await db.checkins.bulkAdd(b.checkins!);
+    await db.medications.bulkAdd(b.medications ?? []);
   });
 }
 
 /** FR-6.3: remove all data from this device and restore the preset factor list. */
 export async function deleteAllData() {
-  await db.transaction('rw', db.episodes, db.factors, db.checkins, async () => {
-    await Promise.all([db.episodes.clear(), db.factors.clear(), db.checkins.clear()]);
+  await db.transaction('rw', [db.episodes, db.factors, db.checkins, db.medications], async () => {
+    await Promise.all([db.episodes.clear(), db.factors.clear(), db.checkins.clear(), db.medications.clear()]);
     await db.factors.bulkAdd(presetFactors());
   });
 }

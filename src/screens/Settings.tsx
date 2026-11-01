@@ -1,16 +1,18 @@
 import { useRef, useState } from 'react';
-import { db, deleteAllData, exportBackup, newId, restoreBackup } from '../db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, deleteAllData, exportBackup, newId, rememberMedications, restoreBackup } from '../db';
 import { localDateKey } from '../dates';
 import { CATEGORIES, DISCLAIMER, SAFETY_NOTE } from '../options';
 import { downloadFile } from '../csv';
 import { clearPin, hasPin, setPin, validPin } from '../lock';
 import { fetchWeather, fillMissingWeather, getLocation, setWeatherEnabled, weatherEnabled } from '../weather';
 import { groupFactors, useFactors } from '../components/FactorPicker';
-import type { Factor } from '../types';
+import type { Factor, Medication } from '../types';
 
 export function Settings({ onLockNow }: { onLockNow: () => void }) {
   return (
     <div className="screen">
+      <MedicationSettings />
       <FactorSettings />
       <WeatherSettings />
       <LockSettings onLockNow={onLockNow} />
@@ -25,6 +27,67 @@ export function Settings({ onLockNow }: { onLockNow: () => void }) {
         </p>
       </section>
     </div>
+  );
+}
+
+function MedicationSettings() {
+  const meds = useLiveQuery(() => db.medications.orderBy('order').toArray(), []) ?? [];
+  const [name, setName] = useState('');
+
+  const add = async () => {
+    await rememberMedications([name]);
+    setName('');
+  };
+
+  const rename = async (m: Medication) => {
+    const next = prompt('Rename medication', m.name)?.trim();
+    if (next) await db.medications.update(m.id, { name: next });
+  };
+
+  const remove = async (m: Medication) => {
+    if (!confirm(`Remove ${m.name} from your list? Past entries keep it.`)) return;
+    await db.medications.delete(m.id);
+  };
+
+  return (
+    <section className="card">
+      <h2>My medications</h2>
+      <p className="muted">
+        The first three appear as one-tap buttons while a migraine is in progress. Names you type in an episode are added
+        here automatically.
+      </p>
+      <div className="row">
+        <input
+          type="text"
+          aria-label="Medication name"
+          placeholder="Name, and dose if you like"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && name.trim() && add()}
+        />
+        <button className="btn" onClick={add} disabled={!name.trim()}>
+          Add
+        </button>
+      </div>
+      {meds.length > 0 && (
+        <ul className="list compact">
+          {meds.map((m) => (
+            <li key={m.id} className="factor-row">
+              <span>{m.name}</span>
+              <span className="row tight">
+                <button className="btn small" onClick={() => rename(m)}>
+                  Rename
+                </button>
+                <button className="btn small" onClick={() => remove(m)}>
+                  Remove
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted small">The app only records what you enter. It never suggests medications or doses.</p>
+    </section>
   );
 }
 
@@ -293,7 +356,7 @@ function DataSettings() {
         ) : (
           <>
             <label className="field">
-              <span className="label">This permanently deletes every episode, check-in, and custom factor. Type DELETE to confirm.</span>
+              <span className="label">This permanently deletes every episode, check-in, custom trigger, and saved medication. Type DELETE to confirm.</span>
               <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
             </label>
             <div className="row">

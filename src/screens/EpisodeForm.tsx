@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { blankEpisode, db, newId } from '../db';
+import { blankEpisode, db, isMedication, newId, rememberMedications } from '../db';
 import { fmtDuration, fromInputValue, nowIso, toInputValue } from '../dates';
-import { AURA, AURA_TYPES, IMPACTS, LOCATIONS, QUALITIES, RELIEF_RATINGS, SYMPTOMS } from '../options';
+import { AURA, AURA_TYPES, IMPACTS, LOCATIONS, QUALITIES, RELIEF_RATINGS, SYMPTOMS, type Option } from '../options';
 import { durationHours, peakIntensity } from '../insights';
 import { MultiChips, SingleChips } from '../components/Chips';
 import { FactorPicker } from '../components/FactorPicker';
 import { attachEpisodeWeather, fmtWeather } from '../weather';
-import type { Episode } from '../types';
+import type { Episode, ReliefEntry } from '../types';
 
 interface Props {
   id: string; // 'new' for a backfilled episode
@@ -15,18 +15,24 @@ interface Props {
 }
 
 const INTENSITIES = Array.from({ length: 11 }, (_, n) => n);
+const YES_NO: Option<'yes' | 'no'>[] = [
+  { value: 'yes', label: 'Yes' },
+  { value: 'no', label: 'No' },
+];
 
 export function EpisodeForm({ id, onClose }: Props) {
   const isNew = id === 'new';
   const [draft, setDraft] = useState<Episode | null>(null);
   const [error, setError] = useState('');
 
-  // Suggest relief items the user has typed before (their own words, never app suggestions).
-  const pastRelief =
+  // Suggestions come only from the user's own past words, never from the app.
+  const past =
     useLiveQuery(async () => {
-      const all = await db.episodes.toArray();
-      return [...new Set(all.flatMap((e) => e.relief.map((r) => r.item.trim())).filter(Boolean))].sort();
-    }, []) ?? [];
+      const all = (await db.episodes.toArray()).flatMap((e) => e.relief);
+      const names = (entries: ReliefEntry[]) => [...new Set(entries.map((r) => r.item.trim()).filter(Boolean))].sort();
+      return { medication: names(all.filter(isMedication)), other: names(all.filter((r) => !isMedication(r))) };
+    }, []) ?? { medication: [], other: [] };
+  const savedMeds = useLiveQuery(() => db.medications.orderBy('order').toArray(), []) ?? [];
 
   useEffect(() => {
     if (isNew) {
@@ -41,17 +47,71 @@ export function EpisodeForm({ id, onClose }: Props) {
 
   const set = (patch: Partial<Episode>) => setDraft({ ...draft, ...patch });
 
+  const medEntries = draft.relief.filter(isMedication);
+  const otherRelief = draft.relief.filter((r) => !isMedication(r));
+  const medNames = [...new Set([...savedMeds.map((m) => m.name), ...past.medication])];
+  const pastRelief = past.other;
+
+  const addRelief = (kind: 'medication' | 'other', item = '') =>
+    set({
+      relief: [...draft.relief, { id: newId(), kind, item, takenAt: draft.endAt === null ? nowIso() : draft.startAt }],
+    });
+  const updateRelief = (id: string, patch: Partial<ReliefEntry>) =>
+    set({ relief: draft.relief.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+  const removeRelief = (id: string) => set({ relief: draft.relief.filter((r) => r.id !== id) });
+
+  const setTookMedication = (value: 'yes' | 'no' | undefined) => {
+    if (value === 'yes') return set({ tookMedication: true });
+    if (medEntries.length) {
+      if (!confirm('Remove the medication entries for this migraine?')) return;
+    }
+    set({ tookMedication: value === 'no' ? false : undefined, relief: otherRelief });
+  };
+
+  const reliefEditor = (r: ReliefEntry, label: string, placeholder: string, list: string) => (
+    <div className="relief" key={r.id}>
+      <div className="row">
+        <input
+          type="text"
+          list={list}
+          aria-label={label}
+          placeholder={placeholder}
+          value={r.item}
+          onChange={(e) => updateRelief(r.id, { item: e.target.value })}
+        />
+        <button className="btn icon" aria-label="Remove entry" onClick={() => removeRelief(r.id)}>
+          ×
+        </button>
+      </div>
+      <input
+        type="datetime-local"
+        aria-label="Time"
+        value={toInputValue(r.takenAt)}
+        onChange={(e) => e.target.value && updateRelief(r.id, { takenAt: fromInputValue(e.target.value) })}
+      />
+      <SingleChips
+        label="How much it helped"
+        options={RELIEF_RATINGS}
+        value={r.rating}
+        onChange={(rating) => updateRelief(r.id, { rating })}
+      />
+    </div>
+  );
+
   const save = async () => {
     if (draft.endAt && Date.parse(draft.endAt) <= Date.parse(draft.startAt)) {
       setError('End time must be after the start time.');
       return;
     }
+    const relief = draft.relief.filter((r) => r.item.trim());
     await db.episodes.put({
       ...draft,
       readings: [...draft.readings].sort((a, b) => a.at.localeCompare(b.at)),
-      relief: draft.relief.filter((r) => r.item.trim()),
+      relief,
+      tookMedication: relief.some(isMedication) ? true : draft.tookMedication,
       updatedAt: nowIso(),
     });
+    await rememberMedications(relief.filter(isMedication).map((r) => r.item));
     attachEpisodeWeather(draft.id); // looks up weather for a new or moved start time, in the background
     onClose();
   };
@@ -200,51 +260,50 @@ export function EpisodeForm({ id, onClose }: Props) {
       </section>
 
       <section className="card">
-        <h2>What you took or did for relief</h2>
-        <p className="muted">Recorded exactly as you enter it.</p>
+        <h2>Medication</h2>
+        <div className="field">
+          <span className="label">Did you take any medication for this migraine?</span>
+          <SingleChips
+            label="Took medication"
+            options={YES_NO}
+            value={draft.tookMedication === undefined ? undefined : draft.tookMedication ? 'yes' : 'no'}
+            onChange={setTookMedication}
+          />
+        </div>
+        {draft.tookMedication && (
+          <>
+            <datalist id="medication-names">
+              {medNames.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+            {medEntries.map((r) => reliefEditor(r, 'Medication name', 'Name, and dose if you like', 'medication-names'))}
+            {savedMeds.length > 0 && (
+              <div className="chips" role="group" aria-label="Add one of your medications">
+                {savedMeds.map((m) => (
+                  <button key={m.id} type="button" className="chip add" onClick={() => addRelief('medication', m.name)}>
+                    + {m.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button className="btn" onClick={() => addRelief('medication')}>
+              {medEntries.length ? 'Add another medication' : 'Add a medication'}
+            </button>
+          </>
+        )}
+        <p className="muted small">Recorded exactly as you enter it. The app never suggests medications or doses.</p>
+      </section>
+
+      <section className="card">
+        <h2>Anything else that helped?</h2>
         <datalist id="relief-items">
           {pastRelief.map((item) => (
             <option key={item} value={item} />
           ))}
         </datalist>
-        {draft.relief.map((r, i) => {
-          const update = (patch: Partial<typeof r>) =>
-            set({ relief: draft.relief.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
-          return (
-            <div className="relief" key={r.id}>
-              <div className="row">
-                <input
-                  type="text"
-                  list="relief-items"
-                  aria-label="What you took or did"
-                  placeholder="e.g. rested in a dark room"
-                  value={r.item}
-                  onChange={(e) => update({ item: e.target.value })}
-                />
-                <button
-                  className="btn icon"
-                  aria-label="Remove entry"
-                  onClick={() => set({ relief: draft.relief.filter((_, j) => j !== i) })}
-                >
-                  ×
-                </button>
-              </div>
-              <input
-                type="datetime-local"
-                aria-label="Time"
-                value={toInputValue(r.takenAt)}
-                onChange={(e) => e.target.value && update({ takenAt: fromInputValue(e.target.value) })}
-              />
-              <SingleChips label="How much it helped" options={RELIEF_RATINGS} value={r.rating} onChange={(rating) => update({ rating })} />
-            </div>
-          );
-        })}
-        <button
-          className="btn"
-          onClick={() =>
-            set({ relief: [...draft.relief, { id: newId(), item: '', takenAt: draft.endAt === null ? nowIso() : draft.startAt }] })
-          }
-        >
+        {otherRelief.map((r) => reliefEditor(r, 'What you did', 'e.g. rested in a dark room', 'relief-items'))}
+        <button className="btn" onClick={() => addRelief('other')}>
           Add entry
         </button>
       </section>

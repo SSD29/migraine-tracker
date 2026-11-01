@@ -9,9 +9,17 @@ export interface IntensityReading {
 
 export interface ReliefEntry {
   id: string;
+  kind?: 'medication' | 'other'; // missing on entries made before medication was split out = 'other'
   item: string; // stored exactly as the user typed it
   takenAt: string;
   rating?: ReliefRating;
+}
+
+/** A medication the user takes, for one-tap logging. Names only; the app never suggests or doses. */
+export interface Medication {
+  id: string;
+  name: string;
+  order: number;
 }
 
 export interface Episode {
@@ -27,6 +35,7 @@ export interface Episode {
   symptoms: string[];
   impact?: Impact;
   relief: ReliefEntry[];
+  tookMedication?: boolean; // undefined = not answered
   factorIds: string[]; // factors in the 24 hours before
   notes: string;
   confirmedAt?: string; // last time the user said a long episode was still going

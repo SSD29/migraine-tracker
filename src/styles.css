@@ -280,6 +280,31 @@ textarea:focus {
 }
 textarea { resize: vertical; }
 
+/* iOS Safari gives date pickers an intrinsic minimum width and ignores width: 100%
+   unless the native appearance is reset, which pushed them past their card. */
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+input::-webkit-date-and-time-value {
+  margin: 0;
+  text-align: left;
+}
+
+/* Let grid and flex children shrink below their content width. */
+.card,
+.field,
+.grid2 > *,
+.row > * {
+  min-width: 0;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -349,6 +374,14 @@ textarea { resize: vertical; }
 .chip[aria-pressed='true']::before,
 .chip[aria-checked='true']::before {
   content: '✓ ';
+}
+
+/* Chips that add something rather than toggle */
+.chip.add {
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--accent-ink);
+  font-weight: 600;
 }
 
 /* 0–10 intensity picker */
@@ -520,11 +553,13 @@ textarea { resize: vertical; }
   font-weight: 600;
   color: var(--faint);
 }
+.week-day { min-width: 0; }
 .week-dot {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 100%;
+  max-width: 38px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background: var(--surface-2);
   color: var(--muted);

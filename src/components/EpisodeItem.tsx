@@ -1,5 +1,7 @@
 import { fmtDateTime, fmtDuration } from '../dates';
 import { durationHours, intensityBand, peakIntensity } from '../insights';
+import { isMedication } from '../db';
+import { medicationStatus } from '../relief';
 import type { Episode } from '../types';
 import { Icon } from './Icon';
 
@@ -16,10 +18,12 @@ export function IntensityBadge({ peak }: { peak: number | undefined }) {
 }
 
 export function EpisodeItem({ episode: e, onOpen }: { episode: Episode; onOpen: () => void }) {
+  const meds = [...new Set(e.relief.filter(isMedication).map((r) => r.item))].join(', ');
   const details = [
     e.endAt ? fmtDuration(durationHours(e)) : 'In progress',
     e.aura === 'yes' && 'aura',
-    e.relief.length > 0 && `${e.relief.length} relief ${e.relief.length === 1 ? 'entry' : 'entries'}`,
+    medicationStatus(e) === 'yes' && (meds || 'medication'),
+    medicationStatus(e) === 'no' && 'no medication',
   ].filter(Boolean);
   return (
     <li>

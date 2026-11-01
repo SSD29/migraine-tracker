@@ -24,7 +24,7 @@ To use it on a phone, deploy `dist/` to any static host with HTTPS, open it in S
 
 ## PRD coverage in this version
 
-Built: one-tap start, backfill, all episode fields, intensity readings, relief log, attack mode, multi-day episodes (with a daily "still going?" check), preset and custom factors, daily check-in, calendar and filtered list, monthly counts, factor frequency (after 10 episodes and 30 days), time patterns, optional weather (pressure, temperature, humidity) with pressure-change patterns, printable PDF report, CSV export, PIN lock, backup and restore, delete all data.
+Built: one-tap start, backfill, all episode fields, intensity readings, medication (yes/no, one-tap logging from a personal list) and other relief, attack mode, multi-day episodes (with a daily "still going?" check), preset and custom factors, daily check-in, calendar and filtered list, monthly counts, factor frequency (after 10 episodes and 30 days), time patterns, optional weather (pressure, temperature, humidity) with pressure-change patterns, printable PDF report, CSV export, PIN lock, backup and restore, delete all data.
 
 Not yet:
 - Daily check-in reminder (needs push notifications or a native app).

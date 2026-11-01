@@ -6,8 +6,11 @@ import {
   db,
   discardEpisode,
   endEpisode,
+  isMedication,
+  logMedication,
   needsStillGoingCheck,
   ongoingEpisode,
+  removeReliefEntry,
   startEpisode,
 } from '../db';
 import {
@@ -15,6 +18,7 @@ import {
   fmtDate,
   fmtDuration,
   fmtSince,
+  fmtTime,
   fromInputValue,
   localDateKey,
   nowIso,
@@ -28,6 +32,11 @@ import { Icon } from '../components/Icon';
 import { attachEpisodeWeather } from '../weather';
 
 const UNDO_MS = 8_000;
+
+interface Toast {
+  text: string;
+  undo: () => Promise<void>;
+}
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => new Date());
@@ -108,24 +117,30 @@ export function Home({ openEpisode, openCheckin }: Props) {
   const ongoing = useLiveQuery(ongoingEpisode, []);
   const checkin = useLiveQuery(() => db.checkins.get(today), [today]);
   const recent = useLiveQuery(() => db.episodes.orderBy('startAt').reverse().limit(3).toArray(), []) ?? [];
-  const [undoId, setUndoId] = useState<string | null>(null);
+  const savedMeds = useLiveQuery(() => db.medications.orderBy('order').limit(3).toArray(), []) ?? [];
+  const [toast, setToast] = useState<Toast | null>(null);
 
   // The undo offer disappears after a few seconds; "Remove" on the card stays available.
   useEffect(() => {
-    if (!undoId) return;
-    const t = setTimeout(() => setUndoId(null), UNDO_MS);
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), UNDO_MS);
     return () => clearTimeout(t);
-  }, [undoId]);
+  }, [toast]);
 
   const start = async () => {
     const e = await startEpisode();
-    setUndoId(e.id);
+    setToast({ text: `Migraine started at ${fmtTime(e.startAt)}`, undo: () => discardEpisode(e.id) });
     attachEpisodeWeather(e.id);
   };
 
+  const takeMedication = async (episodeId: string, name: string) => {
+    const entryId = await logMedication(episodeId, name);
+    if (entryId) setToast({ text: `Logged ${name} at ${fmtTime(nowIso())}`, undo: () => removeReliefEntry(episodeId, entryId) });
+  };
+
   const undo = async () => {
-    if (undoId) await discardEpisode(undoId);
-    setUndoId(null);
+    await toast?.undo();
+    setToast(null);
   };
 
   const remove = async (id: string) => {
@@ -151,6 +166,28 @@ export function Home({ openEpisode, openCheckin }: Props) {
           <div className="field">
             <span className="label">How strong is it now?</span>
             <IntensityScale value={latest} onPick={(n) => addReading(ongoing.id, n)} />
+          </div>
+          <div className="field">
+            <span className="label">Medication</span>
+            {ongoing.relief.some(isMedication) && (
+              <p className="muted small">
+                Taken:{' '}
+                {ongoing.relief
+                  .filter(isMedication)
+                  .map((r) => `${r.item} at ${fmtTime(r.takenAt)}`)
+                  .join(', ')}
+              </p>
+            )}
+            <div className="chips">
+              {savedMeds.map((m) => (
+                <button key={m.id} type="button" className="chip add" onClick={() => takeMedication(ongoing.id, m.name)}>
+                  Took {m.name}
+                </button>
+              ))}
+              <button type="button" className="chip add" onClick={() => openEpisode(ongoing.id)}>
+                {savedMeds.length ? 'Other…' : 'Took medication'}
+              </button>
+            </div>
           </div>
           <div className="stack">
             <button className="btn primary" onClick={() => endEpisode(ongoing.id)}>
@@ -181,9 +218,9 @@ export function Home({ openEpisode, openCheckin }: Props) {
         </section>
       )}
 
-      {undoId && ongoing?.id === undoId && (
+      {toast && (
         <div className="toast" role="status">
-          <span>Migraine started at {fmtSince(ongoing.startAt, now)}</span>
+          <span>{toast.text}</span>
           <button className="btn small" onClick={undo}>
             Undo
           </button>
