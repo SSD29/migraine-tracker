@@ -42,6 +42,25 @@ export const fmtDuration = (hours: number | undefined) => {
   const total = Math.round(hours * 60);
   const h = Math.floor(total / 60);
   const m = total % 60;
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
+  }
   if (h === 0) return `${m}m`;
   return m ? `${h}h ${m}m` : `${h}h`;
+};
+
+/** Start time with as much date as needed: "15:28", "yesterday 15:28", or "Fri 30 Oct, 15:28". */
+export const fmtSince = (iso: string, now = new Date()) => {
+  const key = localDateKey(new Date(iso));
+  const today = localDateKey(now);
+  if (key === today) return fmtTime(iso);
+  if (key === addDays(today, -1)) return `yesterday ${fmtTime(iso)}`;
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };

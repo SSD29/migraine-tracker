@@ -4,6 +4,7 @@ import { localDateKey } from '../dates';
 import { CATEGORIES, DISCLAIMER, SAFETY_NOTE } from '../options';
 import { downloadFile } from '../csv';
 import { clearPin, hasPin, setPin, validPin } from '../lock';
+import { fetchWeather, fillMissingWeather, getLocation, setWeatherEnabled, weatherEnabled } from '../weather';
 import { groupFactors, useFactors } from '../components/FactorPicker';
 import type { Factor } from '../types';
 
@@ -11,6 +12,7 @@ export function Settings({ onLockNow }: { onLockNow: () => void }) {
   return (
     <div className="screen">
       <FactorSettings />
+      <WeatherSettings />
       <LockSettings onLockNow={onLockNow} />
       <DataSettings />
       <section className="card">
@@ -18,7 +20,8 @@ export function Settings({ onLockNow }: { onLockNow: () => void }) {
         <p>{DISCLAIMER}</p>
         <p className="note">{SAFETY_NOTE}</p>
         <p className="muted small">
-          Your entries are stored only in this browser on this device. Dates and times follow your device settings.
+          Your entries are stored only in this browser on this device. Dates, times, and temperature units follow your
+          device settings.
         </p>
       </section>
     </div>
@@ -92,6 +95,86 @@ function FactorSettings() {
           </div>
         ))}
       </details>
+    </section>
+  );
+}
+
+function WeatherSettings() {
+  const [enabled, setEnabled] = useState(weatherEnabled());
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const fill = async () => {
+    setBusy(true);
+    try {
+      const { filled, total } = await fillMissingWeather((done, all) => setMessage(`Looking up weather… ${done} of ${all}`));
+      setMessage(
+        total === 0
+          ? 'All your entries already have weather.'
+          : `Added weather to ${filled} of ${total} entries.${filled < total ? ' The rest can be tried again later.' : ''}`,
+      );
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not look up weather.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const turnOn = async () => {
+    setBusy(true);
+    setMessage('Asking for your location…');
+    try {
+      const coords = await getLocation();
+      await fetchWeather(new Date().toISOString(), coords); // confirm the service is reachable
+      setWeatherEnabled(true);
+      setEnabled(true);
+      setBusy(false);
+      await fill();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not turn on weather.');
+      setBusy(false);
+    }
+  };
+
+  const turnOff = () => {
+    setWeatherEnabled(false);
+    setEnabled(false);
+    setMessage('Weather is off. Weather already saved with your entries is kept.');
+  };
+
+  return (
+    <section className="card">
+      <h2>Weather</h2>
+      <p className="muted">
+        Adds air pressure, temperature, and humidity to each episode and check-in, so you can see how pressure changed
+        before episodes.
+      </p>
+      <p className="muted small">
+        When on, the app sends your approximate location (rounded to about 10 km) and the time of each entry to
+        Open-Meteo, a free weather service. Nothing else from your entries is sent. Past entries use your current
+        location.
+      </p>
+      {message && (
+        <p className="muted" role="status">
+          {message}
+        </p>
+      )}
+      <div className="row wrap">
+        {enabled ? (
+          <>
+            <button className="btn" onClick={fill} disabled={busy}>
+              Fill in missing weather
+            </button>
+            <button className="btn" onClick={turnOff} disabled={busy}>
+              Turn off
+            </button>
+          </>
+        ) : (
+          <button className="btn primary" onClick={turnOn} disabled={busy}>
+            Turn on weather
+          </button>
+        )}
+      </div>
     </section>
   );
 }

@@ -29,8 +29,21 @@ export interface Episode {
   relief: ReliefEntry[];
   factorIds: string[]; // factors in the 24 hours before
   notes: string;
+  confirmedAt?: string; // last time the user said a long episode was still going
+  weather?: WeatherSnapshot; // at the start time, if weather is turned on
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WeatherSnapshot {
+  at: string; // the hour the readings are for (ISO, UTC)
+  temperatureC?: number;
+  humidity?: number; // %
+  pressureHpa?: number; // sea-level pressure
+  pressureChange24h?: number; // hPa, versus 24 hours earlier
+  lat: number; // rounded to ~10 km
+  lon: number;
+  source: 'open-meteo';
 }
 
 export interface Factor {
@@ -48,5 +61,6 @@ export interface DailyCheckin {
   stress?: number; // 1–5
   factorIds: string[];
   notes: string;
+  weather?: WeatherSnapshot; // midday that day (or when logged, for today)
   updatedAt: string;
 }

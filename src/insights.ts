@@ -139,7 +139,38 @@ export function factorFrequency(
     .sort((a, b) => b.episodesWith - a.episodesWith || a.factor.name.localeCompare(b.factor.name));
 }
 
-export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+// A change of this size over 24 hours is what weather forecasters call a notable pressure swing.
+export const PRESSURE_SWING_HPA = 5;
+
+export interface WeatherStats {
+  episodesWithWeather: number;
+  episodesFell: number;
+  episodesRose: number;
+  checkinDaysWithWeather: number; // check-in days without a migraine
+  checkinDaysFell: number;
+  checkinDaysRose: number;
+}
+
+/** How often pressure swung by PRESSURE_SWING_HPA or more in the 24 hours before episodes vs. migraine-free days. */
+export function weatherStats(episodes: Episode[], checkins: DailyCheckin[], now = new Date()): WeatherStats {
+  const change = (w?: { pressureChange24h?: number }) => w?.pressureChange24h;
+  const eps = episodes.map((e) => change(e.weather)).filter((d): d is number => d !== undefined);
+  const attackDays = attackDayMap(episodes, now);
+  const days = checkins
+    .filter((c) => !attackDays.has(c.date))
+    .map((c) => change(c.weather))
+    .filter((d): d is number => d !== undefined);
+  return {
+    episodesWithWeather: eps.length,
+    episodesFell: eps.filter((d) => d <= -PRESSURE_SWING_HPA).length,
+    episodesRose: eps.filter((d) => d >= PRESSURE_SWING_HPA).length,
+    checkinDaysWithWeather: days.length,
+    checkinDaysFell: days.filter((d) => d <= -PRESSURE_SWING_HPA).length,
+    checkinDaysRose: days.filter((d) => d >= PRESSURE_SWING_HPA).length,
+  };
+}
+
+export const WEEKDAYS =['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const TIMES_OF_DAY = [
   { label: 'Night (midnight–6 am)', from: 0 },
   { label: 'Morning (6 am–noon)', from: 6 },

@@ -66,9 +66,21 @@ export async function startEpisode() {
   return e;
 }
 
-export async function endEpisode(id: string) {
-  await db.episodes.update(id, { endAt: nowIso(), updatedAt: nowIso() });
+export async function endEpisode(id: string, at = nowIso()) {
+  await db.episodes.update(id, { endAt: at, updatedAt: nowIso() });
 }
+
+/** The user confirmed a long episode is still going; ask again a day later. */
+export async function confirmOngoing(id: string) {
+  await db.episodes.update(id, { confirmedAt: nowIso(), updatedAt: nowIso() });
+}
+
+// How long an open episode runs before the app asks whether it is still going.
+export const STILL_GOING_CHECK_HOURS = 24;
+
+export const needsStillGoingCheck = (e: Episode, now = new Date()) =>
+  e.endAt === null &&
+  now.getTime() - Date.parse(e.confirmedAt ?? e.startAt) >= STILL_GOING_CHECK_HOURS * 3_600_000;
 
 export async function addReading(id: string, value: number) {
   const e = await db.episodes.get(id);

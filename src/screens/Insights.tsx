@@ -6,6 +6,7 @@ import { INSIGHT_NOTE } from '../options';
 import {
   MIN_DAYS,
   MIN_EPISODES,
+  PRESSURE_SWING_HPA,
   TIMES_OF_DAY,
   WEEKDAYS,
   factorFrequency,
@@ -13,7 +14,9 @@ import {
   monthRange,
   startPatterns,
   summarize,
+  weatherStats,
 } from '../insights';
+import { weatherEnabled } from '../weather';
 import { useFactors } from '../components/FactorPicker';
 import type { DailyCheckin, Episode, Factor } from '../types';
 
@@ -69,6 +72,17 @@ export function Insights() {
         )}
       </section>
 
+      {(weatherEnabled() || episodes.some((e) => e.weather)) && (
+        <section className="card">
+          <h2>Air pressure before episodes</h2>
+          {readiness.ready ? (
+            <WeatherPatterns episodes={episodes} checkins={checkins} />
+          ) : (
+            <p className="muted">This appears once there is enough data, as above.</p>
+          )}
+        </section>
+      )}
+
       <section className="card">
         <h2>When episodes started</h2>
         {episodes.length === 0 ? (
@@ -120,6 +134,33 @@ function Stat({ value, label }: { value: string | number; label: string }) {
       <div className="stat-value">{value}</div>
       <div className="stat-label">{label}</div>
     </div>
+  );
+}
+
+export function WeatherPatterns({ episodes, checkins }: { episodes: Episode[]; checkins: DailyCheckin[] }) {
+  const w = weatherStats(episodes, checkins);
+  if (w.episodesWithWeather === 0) return <p className="muted">No weather has been recorded with your episodes yet.</p>;
+  const free = (n: number) =>
+    w.checkinDaysWithWeather > 0 && (
+      <span className="muted">
+        {' '}
+        · on {n} of {w.checkinDaysWithWeather} check-in days without a migraine
+      </span>
+    );
+  return (
+    <>
+      <ul className="factor-stats">
+        <li>
+          Pressure <strong>fell</strong> by {PRESSURE_SWING_HPA} hPa or more in the 24 hours before {w.episodesFell} of{' '}
+          {w.episodesWithWeather} episodes with weather{free(w.checkinDaysFell)}
+        </li>
+        <li>
+          Pressure <strong>rose</strong> by {PRESSURE_SWING_HPA} hPa or more in the 24 hours before {w.episodesRose} of{' '}
+          {w.episodesWithWeather} episodes with weather{free(w.checkinDaysRose)}
+        </li>
+      </ul>
+      <p className="muted small">{INSIGHT_NOTE}</p>
+    </>
   );
 }
 

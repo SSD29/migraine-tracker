@@ -4,6 +4,7 @@ import { localDateKey, nowIso } from '../dates';
 import { STRESS_LEVELS } from '../options';
 import { SingleChips } from '../components/Chips';
 import { FactorPicker } from '../components/FactorPicker';
+import { attachCheckinWeather } from '../weather';
 import type { DailyCheckin } from '../types';
 
 interface Props {
@@ -36,6 +37,7 @@ export function CheckIn({ date, onClose }: Props) {
 
   const save = async () => {
     await db.checkins.put({ ...draft, updatedAt: nowIso() });
+    attachCheckinWeather(draft.date); // in the background; skipped if weather is off
     onClose();
   };
 

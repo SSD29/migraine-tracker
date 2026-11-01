@@ -6,7 +6,8 @@ import { AURA, IMPACTS, RELIEF_RATINGS, SYMPTOMS, DISCLAIMER, labelOf } from '..
 import { durationHours, insightsReadiness, peakIntensity, summarize } from '../insights';
 import { checkinsCsv, downloadFile, episodesCsv } from '../csv';
 import { useFactors } from '../components/FactorPicker';
-import { FactorTable } from './Insights';
+import { FactorTable, WeatherPatterns } from './Insights';
+import { fmtPressureChange } from '../weather';
 
 const longDate = (key: string) => parseDateKey(key).toLocaleDateString(undefined, { dateStyle: 'medium' });
 
@@ -25,6 +26,7 @@ export function Report() {
   const s = summarize(all, from, to);
   const factorName = (id: string) => factors.find((f) => f.id === id)?.name ?? 'Deleted factor';
   const ready = insightsReadiness(episodes, checkins).ready;
+  const showWeather = episodes.some((e) => e.weather);
 
   return (
     <div className="screen report">
@@ -94,6 +96,7 @@ export function Report() {
                   <th scope="col">Impact</th>
                   <th scope="col">Relief (as entered)</th>
                   <th scope="col">Factors before</th>
+                  {showWeather && <th scope="col">Pressure change before</th>}
                 </tr>
               </thead>
               <tbody>
@@ -111,6 +114,7 @@ export function Report() {
                         : '—'}
                     </td>
                     <td>{e.factorIds.map(factorName).join(', ') || '—'}</td>
+                    {showWeather && <td>{fmtPressureChange(e.weather?.pressureChange24h) || '—'}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -123,6 +127,17 @@ export function Report() {
           <FactorTable episodes={episodes} checkins={checkins} factors={factors} />
         ) : (
           <p className="muted">Not enough entries in this range to summarize factors.</p>
+        )}
+
+        {episodes.some((e) => e.weather) && (
+          <>
+            <h2>Air pressure before episodes</h2>
+            {ready ? (
+              <WeatherPatterns episodes={episodes} checkins={checkins} />
+            ) : (
+              <p className="muted">Not enough entries in this range to summarize weather.</p>
+            )}
+          </>
         )}
 
         <p className="footer-note">{DISCLAIMER} Patterns shown reflect the user's own entries and are not causes.</p>

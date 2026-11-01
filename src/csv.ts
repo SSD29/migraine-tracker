@@ -1,4 +1,4 @@
-import type { DailyCheckin, Episode, Factor } from './types';
+import type { DailyCheckin, Episode, Factor, WeatherSnapshot } from './types';
 import { AURA, AURA_TYPES, IMPACTS, LOCATIONS, QUALITIES, RELIEF_RATINGS, SYMPTOMS, labelOf } from './options';
 import { durationHours, peakIntensity } from './insights';
 
@@ -17,11 +17,18 @@ const names = (ids: string[], factors: Factor[]) =>
 const labels = (values: string[], options: { value: string; label: string }[]) =>
   values.map((v) => labelOf(options, v)).join('; ');
 
+const WEATHER_HEADER = [
+  'Weather time (UTC)', 'Temperature (C)', 'Humidity (%)', 'Pressure (hPa)', 'Pressure change 24h (hPa)',
+];
+
+const weatherCells = (w: WeatherSnapshot | undefined): Cell[] =>
+  w ? [w.at, w.temperatureC, w.humidity, w.pressureHpa, w.pressureChange24h] : ['', '', '', '', ''];
+
 export function episodesCsv(episodes: Episode[], factors: Factor[]) {
   const header = [
     'Start', 'End', 'Time zone', 'Duration (hours)', 'Peak intensity (0-10)', 'Intensity readings',
     'Location', 'Quality', 'Aura', 'Aura type', 'Symptoms', 'Impact', 'Relief (as entered)',
-    'Factors (24h before)', 'Notes',
+    'Factors (24h before)', 'Notes', ...WEATHER_HEADER,
   ];
   const rows = episodes.map((e) => {
     const hours = durationHours(e);
@@ -41,14 +48,22 @@ export function episodesCsv(episodes: Episode[], factors: Factor[]) {
       e.relief.map((r) => `${r.item} at ${r.takenAt}${r.rating ? ` (${labelOf(RELIEF_RATINGS, r.rating)})` : ''}`).join('; '),
       names(e.factorIds, factors),
       e.notes,
+      ...weatherCells(e.weather),
     ];
   });
   return toCsv([header, ...rows]);
 }
 
 export function checkinsCsv(checkins: DailyCheckin[], factors: Factor[]) {
-  const header = ['Date', 'Sleep (hours)', 'Stress (1-5)', 'Factors', 'Notes'];
-  const rows = checkins.map((c) => [c.date, c.sleepHours, c.stress, names(c.factorIds, factors), c.notes]);
+  const header = ['Date', 'Sleep (hours)', 'Stress (1-5)', 'Factors', 'Notes', ...WEATHER_HEADER];
+  const rows = checkins.map((c) => [
+    c.date,
+    c.sleepHours,
+    c.stress,
+    names(c.factorIds, factors),
+    c.notes,
+    ...weatherCells(c.weather),
+  ]);
   return toCsv([header, ...rows]);
 }
 

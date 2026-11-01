@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { addReading, db, endEpisode, ongoingEpisode, startEpisode } from '../db';
-import { fmtDateTime, fmtDuration, fmtTime, localDateKey } from '../dates';
+import {
+  addReading,
+  confirmOngoing,
+  db,
+  endEpisode,
+  needsStillGoingCheck,
+  ongoingEpisode,
+  startEpisode,
+} from '../db';
+import { fmtDateTime, fmtDuration, fmtSince, fromInputValue, localDateKey, nowIso, toInputValue } from '../dates';
 import { durationHours, peakIntensity } from '../insights';
 import { IntensityScale } from '../components/Chips';
+import { attachEpisodeWeather } from '../weather';
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => new Date());
@@ -12,6 +21,65 @@ function useNow(intervalMs = 30_000) {
     return () => clearInterval(t);
   }, [intervalMs]);
   return now;
+}
+
+/** Asked once a day while an episode stays open, so a forgotten one doesn't keep counting days. */
+function StillGoing({ id, startAt }: { id: string; startAt: string }) {
+  const [endAt, setEndAt] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const saveEnd = async () => {
+    if (!endAt) return;
+    if (Date.parse(endAt) <= Date.parse(startAt) || Date.parse(endAt) > Date.now()) {
+      setError('Pick a time after it started and not in the future.');
+      return;
+    }
+    await endEpisode(id, endAt);
+  };
+
+  return (
+    <div className="still-going" role="group" aria-label="Is this migraine still going?">
+      <p>
+        <strong>Is it still going?</strong> If it already ended, set when.
+      </p>
+      {endAt === null ? (
+        <div className="row wrap">
+          <button className="btn" onClick={() => confirmOngoing(id)}>
+            Yes, still going
+          </button>
+          <button className="btn" onClick={() => setEndAt(nowIso())}>
+            It ended at…
+          </button>
+        </div>
+      ) : (
+        <>
+          <label className="field">
+            <span className="label">Ended</span>
+            <input
+              type="datetime-local"
+              min={toInputValue(startAt)}
+              max={toInputValue(nowIso())}
+              value={toInputValue(endAt)}
+              onChange={(e) => e.target.value && setEndAt(fromInputValue(e.target.value))}
+            />
+          </label>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="row">
+            <button className="btn" onClick={() => setEndAt(null)}>
+              Back
+            </button>
+            <button className="btn primary" onClick={saveEnd}>
+              Save end time
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 interface Props {
@@ -36,9 +104,10 @@ export function Home({ openEpisode, openCheckin }: Props) {
         <section className="card ongoing" aria-live="polite">
           <h2>Migraine in progress</h2>
           <p className="muted">
-            Since {fmtTime(ongoing.startAt)} ·{' '}
+            Since {fmtSince(ongoing.startAt, now)} ·{' '}
             {fmtDuration((now.getTime() - Date.parse(ongoing.startAt)) / 3_600_000)}
           </p>
+          {needsStillGoingCheck(ongoing, now) && <StillGoing id={ongoing.id} startAt={ongoing.startAt} />}
           <div className="field">
             <span className="label">How strong is it now?</span>
             <IntensityScale value={latest} onPick={(n) => addReading(ongoing.id, n)} />
@@ -54,7 +123,7 @@ export function Home({ openEpisode, openCheckin }: Props) {
         </section>
       ) : (
         <section className="start">
-          <button className="btn big primary" onClick={() => startEpisode()}>
+          <button className="btn big primary" onClick={() => startEpisode().then((e) => attachEpisodeWeather(e.id))}>
             Migraine started
           </button>
           <p className="muted center">Logs the start time now. You can add details later.</p>

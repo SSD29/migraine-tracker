@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { blankEpisode, db, newId } from '../db';
-import { fromInputValue, nowIso, toInputValue } from '../dates';
+import { fmtDuration, fromInputValue, nowIso, toInputValue } from '../dates';
 import { AURA, AURA_TYPES, IMPACTS, LOCATIONS, QUALITIES, RELIEF_RATINGS, SYMPTOMS } from '../options';
 import { durationHours, peakIntensity } from '../insights';
 import { MultiChips, SingleChips } from '../components/Chips';
 import { FactorPicker } from '../components/FactorPicker';
+import { attachEpisodeWeather, fmtWeather } from '../weather';
 import type { Episode } from '../types';
 
 interface Props {
@@ -51,6 +52,7 @@ export function EpisodeForm({ id, onClose }: Props) {
       relief: draft.relief.filter((r) => r.item.trim()),
       updatedAt: nowIso(),
     });
+    attachEpisodeWeather(draft.id); // looks up weather for a new or moved start time, in the background
     onClose();
   };
 
@@ -109,8 +111,9 @@ export function EpisodeForm({ id, onClose }: Props) {
           </label>
         )}
         {durationHours(draft) !== undefined && durationHours(draft)! > 0 && (
-          <p className="muted">Duration: {Math.round(durationHours(draft)! * 10) / 10} hours</p>
+          <p className="muted">Duration: {fmtDuration(durationHours(draft))}</p>
         )}
+        {draft.weather && <p className="muted">Weather at start: {fmtWeather(draft.weather)}</p>}
       </section>
 
       <section className="card">
