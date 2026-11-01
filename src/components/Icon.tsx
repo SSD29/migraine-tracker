@@ -51,6 +51,12 @@ const PATHS = {
     </>
   ),
   shield: <path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6z" />,
+  sparkle: (
+    <>
+      <path d="M12 4l1.8 4.7L18.5 10.5l-4.7 1.8L12 17l-1.8-4.7L5.5 10.5l4.7-1.8z" />
+      <path d="M18.5 16v4M16.5 18h4" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

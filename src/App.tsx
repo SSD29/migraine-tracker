@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ongoingEpisode } from './db';
+import type { Episode } from './types';
 import { DISCLAIMER, SAFETY_NOTE } from './options';
 import { ONBOARDED_KEY, hasPin, storage } from './lock';
 import { Home } from './screens/Home';
@@ -11,17 +12,23 @@ import { Insights } from './screens/Insights';
 import { Report } from './screens/Report';
 import { Settings } from './screens/Settings';
 import { Lock } from './screens/Lock';
+import { Describe } from './screens/Describe';
 import { Icon, Logo, type IconName } from './components/Icon';
 
 type Tab = 'home' | 'history' | 'insights' | 'report' | 'settings';
-type Overlay = { kind: 'episode'; id: string } | { kind: 'checkin'; date: string } | null;
+type Overlay =
+  | { kind: 'episode'; id: string }
+  | { kind: 'draft'; draft: Episode; source: string } // filled in by AI, not saved yet
+  | { kind: 'describe' }
+  | { kind: 'checkin'; date: string }
+  | null;
 
 const TABS: { id: Tab; label: string; icon: IconName; subtitle?: string }[] = [
   { id: 'home', label: 'Today', icon: 'today' },
   { id: 'history', label: 'History', icon: 'calendar', subtitle: 'Every episode and check-in' },
   { id: 'insights', label: 'Patterns', icon: 'patterns', subtitle: 'What your entries show over time' },
   { id: 'report', label: 'Report', icon: 'report', subtitle: 'A summary to share with your doctor' },
-  { id: 'settings', label: 'Settings', icon: 'settings', subtitle: 'Triggers, weather, privacy, and data' },
+  { id: 'settings', label: 'Settings', icon: 'settings', subtitle: 'Medications, triggers, AI, privacy, and data' },
 ];
 
 export function App() {
@@ -34,6 +41,7 @@ export function App() {
   const close = useCallback(() => setOverlay(null), []);
   const openEpisode = useCallback((id: string) => setOverlay({ kind: 'episode', id }), []);
   const openCheckin = useCallback((date: string) => setOverlay({ kind: 'checkin', date }), []);
+  const openDescribe = useCallback(() => setOverlay({ kind: 'describe' }), []);
 
   // FR-1.7: dim, low-contrast "attack mode" while an episode is in progress.
   useEffect(() => {
@@ -59,7 +67,7 @@ export function App() {
           healthcare provider.
         </p>
         <p className="note">{SAFETY_NOTE}</p>
-        <p className="muted small">Your entries stay on this device. Nothing is uploaded.</p>
+        <p className="muted small">Your entries stay on this device. Nothing is uploaded unless you turn on weather or AI features.</p>
         <button
           className="btn primary big"
           onClick={() => {
@@ -79,6 +87,10 @@ export function App() {
         <main>
           {overlay.kind === 'episode' ? (
             <EpisodeForm key={overlay.id} id={overlay.id} onClose={close} />
+          ) : overlay.kind === 'draft' ? (
+            <EpisodeForm key={overlay.draft.id} id={overlay.draft.id} initial={overlay.draft} source={overlay.source} onClose={close} />
+          ) : overlay.kind === 'describe' ? (
+            <Describe onDraft={(draft, source) => setOverlay({ kind: 'draft', draft, source })} onClose={close} />
           ) : (
             <CheckIn key={overlay.date} date={overlay.date} onClose={close} />
           )}
@@ -93,7 +105,7 @@ export function App() {
             </p>
           </header>
           <main>
-            {tab === 'home' && <Home openEpisode={openEpisode} openCheckin={openCheckin} />}
+            {tab === 'home' && <Home openEpisode={openEpisode} openCheckin={openCheckin} openDescribe={openDescribe} />}
             {tab === 'history' && <History openEpisode={openEpisode} openCheckin={openCheckin} />}
             {tab === 'insights' && <Insights />}
             {tab === 'report' && <Report />}

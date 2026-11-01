@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { fmtDuration } from '../dates';
+import { fmtDate, fmtDuration, fmtSince } from '../dates';
+import { storage } from '../lock';
+import { AI_NOTE, aiEnabled } from '../ai/key';
+import { reflectionWindow } from '../ai/reflect';
 import { INSIGHT_NOTE } from '../options';
 import {
   MIN_DAYS,
@@ -41,6 +44,8 @@ export function Insights() {
   return (
     <div className="screen">
       <p className="note">{INSIGHT_NOTE}</p>
+
+      {aiEnabled() && <WeeklyReflection />}
 
       <section className="card">
         <div className="row spread">
@@ -191,5 +196,84 @@ export function FactorTable({ episodes, checkins, factors }: FactorTableProps) {
       </ul>
       <p className="muted small">{INSIGHT_NOTE}</p>
     </>
+  );
+}
+
+// The last reflection is kept on this device so reopening the page doesn't cost another request.
+const REFLECTION_KEY = 'mt-ai-reflection';
+interface SavedReflection {
+  text: string;
+  at: string;
+  from: string;
+  to: string;
+}
+
+function loadReflection(): SavedReflection | null {
+  try {
+    return JSON.parse(storage.get(REFLECTION_KEY) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+function WeeklyReflection() {
+  const [saved, setSaved] = useState(loadReflection);
+  const [streaming, setStreaming] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const { from, to } = reflectionWindow();
+  const current = saved && saved.to === to ? saved : null;
+
+  useEffect(() => setError(''), [to]);
+
+  const write = async () => {
+    setError('');
+    setStreaming('');
+    try {
+      const { streamReflection } = await import('../ai/reflection');
+      const text = await streamReflection(setStreaming);
+      const next = { text, at: new Date().toISOString(), from, to };
+      storage.set(REFLECTION_KEY, JSON.stringify(next));
+      setSaved(next);
+    } catch (err) {
+      const { aiErrorMessage } = await import('../ai/client');
+      setError(aiErrorMessage(err));
+    } finally {
+      setStreaming(null);
+    }
+  };
+
+  const shown = streaming ?? current?.text;
+  return (
+    <section className="card">
+      <div className="row spread">
+        <h2>Your week</h2>
+        <span className="ai-tag">
+          <Icon name="sparkle" size={14} /> AI
+        </span>
+      </div>
+      <p className="muted small">
+        {fmtDate(from)} to {fmtDate(to)}
+        {current && streaming === null && ` · written ${fmtSince(current.at)}`}
+      </p>
+      {shown ? (
+        <p className="reflection" aria-live="polite">
+          {shown}
+          {streaming !== null && '…'}
+        </p>
+      ) : (
+        <p className="muted">A short, neutral recap of the last 7 days of episodes and check-ins.</p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="btn" onClick={write} disabled={streaming !== null}>
+        {streaming !== null ? 'Writing…' : current ? 'Write again' : 'Write my weekly reflection'}
+      </button>
+      <p className="muted small">
+        {shown && `${AI_NOTE} `}Writing it sends these 7 days of entries, including notes, to Anthropic.
+      </p>
+    </section>
   );
 }

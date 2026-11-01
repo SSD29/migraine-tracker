@@ -7,6 +7,7 @@ import { downloadFile } from '../csv';
 import { clearPin, hasPin, setPin, validPin } from '../lock';
 import { fetchWeather, fillMissingWeather, getLocation, setWeatherEnabled, weatherEnabled } from '../weather';
 import { groupFactors, useFactors } from '../components/FactorPicker';
+import { aiEnabled, clearApiKey, getApiKey, setApiKey } from '../ai/key';
 import type { Factor, Medication } from '../types';
 
 export function Settings({ onLockNow }: { onLockNow: () => void }) {
@@ -15,6 +16,7 @@ export function Settings({ onLockNow }: { onLockNow: () => void }) {
       <MedicationSettings />
       <FactorSettings />
       <WeatherSettings />
+      <AiSettings />
       <LockSettings onLockNow={onLockNow} />
       <DataSettings />
       <section className="card">
@@ -22,7 +24,8 @@ export function Settings({ onLockNow }: { onLockNow: () => void }) {
         <p>{DISCLAIMER}</p>
         <p className="note">{SAFETY_NOTE}</p>
         <p className="muted small">
-          Your entries are stored only in this browser on this device. Dates, times, and temperature units follow your
+          Your entries are stored only in this browser on this device. Weather and AI features, when you turn them on,
+          send only what their descriptions say. Dates, times, and temperature units follow your
           device settings.
         </p>
       </section>
@@ -242,6 +245,81 @@ function WeatherSettings() {
   );
 }
 
+function AiSettings() {
+  const [enabled, setEnabled] = useState(aiEnabled());
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const save = async () => {
+    setBusy(true);
+    setMessage('Checking the key…');
+    const previous = getApiKey();
+    setApiKey(key);
+    try {
+      const { testApiKey } = await import('../ai/client');
+      await testApiKey();
+      setEnabled(true);
+      setKey('');
+      setMessage('AI features are on.');
+    } catch (err) {
+      const { aiErrorMessage } = await import('../ai/client');
+      if (previous) setApiKey(previous); // keep the key that worked
+      else clearApiKey();
+      setMessage(aiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = () => {
+    if (!confirm('Remove your API key from this device? AI features will turn off.')) return;
+    clearApiKey();
+    setEnabled(false);
+    setMessage('AI features are off. Your key is no longer stored here.');
+  };
+
+  return (
+    <section className="card">
+      <h2>AI features</h2>
+      <p className="muted">
+        Describe a migraine in your own words and have the form filled in for you to check, and get a short reflection
+        on your week on the Patterns page. Uses Claude, by Anthropic.
+      </p>
+      <p className="muted small">
+        Needs your own Anthropic API key (from console.anthropic.com), which is stored only on this device and never in
+        backups. When you use an AI feature, the text you typed or that week's entries are sent to Anthropic. Each use
+        costs a cent or two on your Anthropic account. AI never diagnoses or suggests medications or doses.
+      </p>
+      {message && (
+        <p className="muted" role="status">
+          {message}
+        </p>
+      )}
+      <div className="row">
+        <input
+          type="password"
+          autoComplete="off"
+          aria-label="Anthropic API key"
+          placeholder={enabled ? 'Replace key (sk-ant-…)' : 'Paste your key (sk-ant-…)'}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+        />
+        <button className="btn primary" onClick={save} disabled={busy || !key.trim()}>
+          Save
+        </button>
+      </div>
+      {enabled && (
+        <div className="row wrap">
+          <button className="btn" onClick={remove} disabled={busy}>
+            Remove key
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function LockSettings({ onLockNow }: { onLockNow: () => void }) {
   const [enabled, setEnabled] = useState(hasPin());
   const [pin, setPinValue] = useState('');
@@ -336,7 +414,7 @@ function DataSettings() {
   return (
     <section className="card">
       <h2>Your data</h2>
-      <p className="muted">Nothing is uploaded. Save a backup file to move your entries to another device or keep a copy.</p>
+      <p className="muted">Backups never include your API key. Save a backup file to move your entries to another device or keep a copy.</p>
       <div className="row wrap">
         <button className="btn" onClick={backup}>
           Save backup file

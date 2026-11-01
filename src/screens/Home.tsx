@@ -28,6 +28,7 @@ import {
 import { attackDayMap, intensityBand, monthRange, summarize } from '../insights';
 import { IntensityScale } from '../components/Chips';
 import { EpisodeItem } from '../components/EpisodeItem';
+import { aiEnabled } from '../ai/key';
 import { Icon } from '../components/Icon';
 import { attachEpisodeWeather } from '../weather';
 
@@ -109,9 +110,10 @@ function StillGoing({ id, startAt }: { id: string; startAt: string }) {
 interface Props {
   openEpisode: (id: string) => void;
   openCheckin: (date: string) => void;
+  openDescribe: () => void;
 }
 
-export function Home({ openEpisode, openCheckin }: Props) {
+export function Home({ openEpisode, openCheckin, openDescribe }: Props) {
   const now = useNow();
   const today = localDateKey(now);
   const ongoing = useLiveQuery(ongoingEpisode, []);
@@ -215,6 +217,11 @@ export function Home({ openEpisode, openCheckin }: Props) {
           <button className="btn quiet" onClick={() => openEpisode('new')}>
             <Icon name="clock" size={18} /> Log a past migraine
           </button>
+          {aiEnabled() && (
+            <button className="btn quiet" onClick={openDescribe}>
+              <Icon name="sparkle" size={18} /> Describe one in words
+            </button>
+          )}
         </section>
       )}
 

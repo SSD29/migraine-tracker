@@ -11,6 +11,8 @@ import type { Episode, ReliefEntry } from '../types';
 
 interface Props {
   id: string; // 'new' for a backfilled episode
+  initial?: Episode; // an unsaved draft filled in by AI from the user's description
+  source?: string; // that description, shown for checking
   onClose: () => void;
 }
 
@@ -20,8 +22,8 @@ const YES_NO: Option<'yes' | 'no'>[] = [
   { value: 'no', label: 'No' },
 ];
 
-export function EpisodeForm({ id, onClose }: Props) {
-  const isNew = id === 'new';
+export function EpisodeForm({ id, initial, source, onClose }: Props) {
+  const isNew = id === 'new' || !!initial;
   const [draft, setDraft] = useState<Episode | null>(null);
   const [error, setError] = useState('');
 
@@ -35,13 +37,15 @@ export function EpisodeForm({ id, onClose }: Props) {
   const savedMeds = useLiveQuery(() => db.medications.orderBy('order').toArray(), []) ?? [];
 
   useEffect(() => {
-    if (isNew) {
+    if (initial) {
+      setDraft(initial);
+    } else if (isNew) {
       const start = new Date(Date.now() - 2 * 3_600_000).toISOString();
       setDraft({ ...blankEpisode(start), endAt: nowIso() });
     } else {
       db.episodes.get(id).then((e) => (e ? setDraft(e) : onClose()));
     }
-  }, [id, isNew, onClose]);
+  }, [id, isNew, initial, onClose]);
 
   if (!draft) return null;
 
@@ -130,7 +134,7 @@ export function EpisodeForm({ id, onClose }: Props) {
         <button className="btn link" onClick={onClose}>
           Cancel
         </button>
-        <h1>{isNew ? 'Log a past migraine' : 'Episode details'}</h1>
+        <h1>{initial ? 'Check and save' : isNew ? 'Log a past migraine' : 'Episode details'}</h1>
         <button className="btn primary" onClick={save}>
           Save
         </button>
@@ -140,6 +144,14 @@ export function EpisodeForm({ id, onClose }: Props) {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+
+      {initial && (
+        <section className="ai-banner">
+          <strong>Filled in by AI from your description.</strong> Check each field and fix anything that's wrong before
+          saving. Blank fields weren't in your description.
+          {source && <blockquote>{source}</blockquote>}
+        </section>
       )}
 
       <section className="card">
