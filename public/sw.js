@@ -1,9 +1,9 @@
 // App-shell cache so the tracker opens offline. All user data lives in IndexedDB, not here.
 // Paths are relative to this file, so it works under a sub-path such as GitHub Pages.
-const CACHE = 'migraine-tracker-v1';
+const CACHE = 'migraine-tracker-v2';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg'])));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg', './apple-touch-icon.png', './icon-192.png', './icon-512.png'])));
   self.skipWaiting();
 });
 
