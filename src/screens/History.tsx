@@ -43,7 +43,7 @@ function Calendar({ episodes, openEpisode, openCheckin }: { episodes: Episode[] 
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [picked, setPicked] = useState<string | null>(null);
   const dayMap = useMemo(() => attackDayMap(episodes), [episodes]);
-  const checkinDates = useLiveQuery(() => db.checkins.toCollection().primaryKeys(), []) ?? [];
+  const checkinDates = useLiveQuery(() => db.checkins.orderBy('date').keys() as Promise<string[]>, []) ?? [];
 
   const first = new Date(cursor.y, cursor.m, 1);
   const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ongoingEpisode } from './db';
+import { startSync } from './sync';
 import type { Episode } from './types';
 import { DISCLAIMER, SAFETY_NOTE } from './options';
 import { ONBOARDED_KEY, hasPin, storage } from './lock';
@@ -36,7 +37,14 @@ export function App() {
   const [onboarded, setOnboarded] = useState(storage.get(ONBOARDED_KEY) === '1');
   const [tab, setTab] = useState<Tab>('home');
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const ongoing = useLiveQuery(ongoingEpisode, []);
+  // Nothing touches the database until the welcome screen and PIN are past, because the
+  // first access on a device opens the sign-in dialog.
+  const ready = onboarded && !locked;
+  const ongoing = useLiveQuery(() => (ready ? ongoingEpisode() : null), [ready]);
+
+  useEffect(() => {
+    if (ready) startSync();
+  }, [ready]);
 
   const close = useCallback(() => setOverlay(null), []);
   const openEpisode = useCallback((id: string) => setOverlay({ kind: 'episode', id }), []);
@@ -67,7 +75,7 @@ export function App() {
           healthcare provider.
         </p>
         <p className="note">{SAFETY_NOTE}</p>
-        <p className="muted small">Your entries stay on this device. Nothing is uploaded unless you turn on weather or AI features.</p>
+        <p className="muted small">You'll sign in with your email so your entries sync across your devices. Nothing else is uploaded unless you turn on weather or AI features.</p>
         <button
           className="btn primary big"
           onClick={() => {

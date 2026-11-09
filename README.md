@@ -16,12 +16,20 @@ To use it on a phone, deploy `dist/` to any static host with HTTPS, open it in S
 ## How it's built
 
 - React + TypeScript + Vite. No backend.
-- Data lives in the browser's IndexedDB via Dexie (`src/db.ts`). Nothing is uploaded unless the user turns on weather or AI.
+- Data lives in the browser's IndexedDB via Dexie (`src/db.ts`) and syncs through Dexie Cloud (`dexie-cloud-addon`) to every device where the user signs in with the same email. See "Sync" below. Nothing else is uploaded unless the user turns on weather or AI.
 - `src/insights.ts` holds the counting logic (attack days, factor frequency, time patterns) as pure, tested functions.
 - Guardrail copy (disclaimer, safety note, insight note) lives in `src/options.ts`. Change it only after a guardrail review.
 - `src/weather.ts` looks up weather from [Open-Meteo](https://open-meteo.com) (free, no key, non-commercial use) when the user turns it on. Only a rounded location (about 10 km) and the entry's time are sent.
 - `src/ai/` holds the optional AI features (Gemini via `@google/genai`, or Claude via `@anthropic-ai/sdk`). See below.
 - `public/sw.js` caches the app shell so it opens offline (production builds only).
+
+## Sync
+
+- Database `https://zox43fsem.dexie.cloud` (free plan). Allowed origins: `https://ssd29.github.io` and `http://localhost:5173` (`npx dexie-cloud whitelist <origin>`). `dexie-cloud.json` and `dexie-cloud.key` are created by `npx dexie-cloud create`, hold the manager credentials, and stay out of git.
+- `requireAuth: true`: the first database access on a device opens Dexie Cloud's email-code sign-in dialog. `App` touches nothing until the welcome screen and PIN are past, then `startSync()` (`src/sync.ts`) pulls the account, copies the old device-only database in once (`importLocalData`), and adds missing presets.
+- Rows that every device creates on its own use private IDs (`#f-poor-sleep` for presets, `#c-2026-11-01` for check-ins) so devices don't duplicate each other. Synced tables can't be migrated with `version().upgrade()`, so new fields must stay optional.
+- New accounts are 30-day evaluation users. Move the account to one of the 3 free production seats at manager.dexie.cloud, or sync stops (the Settings card shows the days left).
+- Restore and Delete all data apply to every signed-in device.
 
 ## AI features
 
@@ -37,11 +45,11 @@ Calling the API from the browser with the user's own key is fine for a personal 
 
 ## PRD coverage in this version
 
-Built: one-tap start, backfill, all episode fields, intensity readings, medication (yes/no, one-tap logging from a personal list) and other relief, attack mode, multi-day episodes (with a daily "still going?" check), preset and custom factors, daily check-in, calendar and filtered list, monthly counts, factor frequency (after 10 episodes and 30 days), time patterns, optional weather (pressure, temperature, humidity) with pressure-change patterns, printable PDF report, CSV export, PIN lock, backup and restore, delete all data.
+Built: one-tap start, backfill, all episode fields, intensity readings, medication (yes/no, one-tap logging from a personal list) and other relief, attack mode, multi-day episodes (with a daily "still going?" check), preset and custom factors, daily check-in, calendar and filtered list, monthly counts, factor frequency (after 10 episodes and 30 days), time patterns, optional weather (pressure, temperature, humidity) with pressure-change patterns, printable PDF report, CSV export, PIN lock, backup and restore, delete all data, sync across devices (Dexie Cloud).
 
 Not yet:
 - Daily check-in reminder (needs push notifications or a native app).
 - Apple Health / Health Connect integration (planned for v1.1).
-- Accounts and encrypted cloud sync. Use backup files for now.
+- End-to-end encryption of synced data (Dexie Cloud stores it on its servers).
 - Encryption at rest. The PIN blocks casual access but browser storage is not encrypted by the app.
 - Biometric unlock.

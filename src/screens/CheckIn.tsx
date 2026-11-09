@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { blankCheckin, db } from '../db';
+import { blankCheckin, checkinId, db } from '../db';
 import { localDateKey, nowIso } from '../dates';
 import { STRESS_LEVELS } from '../options';
 import { SingleChips } from '../components/Chips';
@@ -18,7 +18,7 @@ export function CheckIn({ date, onClose }: Props) {
   const [exists, setExists] = useState(false);
 
   useEffect(() => {
-    db.checkins.get(date).then((c) => {
+    db.checkins.get(checkinId(date)).then((c) => {
       setExists(!!c);
       setDraft(c ?? blankCheckin(date));
     });
@@ -30,9 +30,9 @@ export function CheckIn({ date, onClose }: Props) {
 
   const changeDate = async (next: string) => {
     if (!next) return;
-    const existing = await db.checkins.get(next);
+    const existing = await db.checkins.get(checkinId(next));
     setExists(!!existing);
-    setDraft(existing ?? { ...draft, date: next });
+    setDraft(existing ?? { ...draft, id: checkinId(next), date: next });
   };
 
   const save = async () => {
@@ -43,7 +43,7 @@ export function CheckIn({ date, onClose }: Props) {
 
   const remove = async () => {
     if (!confirm('Delete this check-in?')) return;
-    await db.checkins.delete(draft.date);
+    await db.checkins.delete(draft.id);
     onClose();
   };
 

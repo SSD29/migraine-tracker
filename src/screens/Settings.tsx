@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useLiveQuery, useObservable } from 'dexie-react-hooks';
 import { db, deleteAllData, exportBackup, newId, rememberMedications, restoreBackup } from '../db';
 import { localDateKey } from '../dates';
 import { CATEGORIES, DISCLAIMER, SAFETY_NOTE } from '../options';
@@ -13,6 +13,7 @@ import type { Factor, Medication } from '../types';
 export function Settings({ onLockNow }: { onLockNow: () => void }) {
   return (
     <div className="screen">
+      <SyncSettings />
       <MedicationSettings />
       <FactorSettings />
       <WeatherSettings />
@@ -24,12 +25,59 @@ export function Settings({ onLockNow }: { onLockNow: () => void }) {
         <p>{DISCLAIMER}</p>
         <p className="note">{SAFETY_NOTE}</p>
         <p className="muted small">
-          Your entries are stored only in this browser on this device. Weather and AI features, when you turn them on,
-          send only what their descriptions say. Dates, times, and temperature units follow your
+          Your entries are kept on this device and synced through Dexie Cloud to the devices where you sign in. Weather
+          and AI features, when you turn them on, send only what their descriptions say. Dates, times, and temperature units follow your
           device settings.
         </p>
       </section>
     </div>
+  );
+}
+
+const SYNC_PHASES: Record<string, string> = {
+  'in-sync': 'Up to date.',
+  pushing: 'Syncing…',
+  pulling: 'Syncing…',
+  'not-in-sync': 'Waiting to sync…',
+  initial: 'Connecting…',
+  offline: "Offline. Changes will sync when you're back online.",
+  error: 'Sync failed. It will try again.',
+};
+
+function SyncSettings() {
+  const user = useObservable(db.cloud.currentUser);
+  const sync = useObservable(db.cloud.syncState);
+  if (!user?.isLoggedIn) return null;
+  const license = user.license;
+
+  const signOut = async () => {
+    if (!confirm('Sign out on this device? Your entries stay in your account; this device will ask you to sign in again.')) return;
+    await db.cloud.logout();
+  };
+
+  return (
+    <section className="card">
+      <h2>Sync</h2>
+      <p>
+        Signed in as <strong>{user.email}</strong>. Your entries sync to every device where you sign in with this email.
+      </p>
+      <p className="muted" role="status">
+        {sync?.license === 'expired' || license?.status === 'expired'
+          ? 'Syncing has stopped because the free trial ended. Your entries on this device are safe.'
+          : (SYNC_PHASES[sync?.phase ?? 'initial'] ?? '')}
+      </p>
+      {license?.type === 'eval' && license.status === 'ok' && (
+        <p className="muted small">
+          Trial account{license.evalDaysLeft !== undefined && `: ${license.evalDaysLeft} days of syncing left`}. Make it
+          permanent (free) at manager.dexie.cloud, under Users.
+        </p>
+      )}
+      <div className="row wrap">
+        <button className="btn" onClick={signOut}>
+          Sign out on this device
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -409,7 +457,7 @@ function DataSettings() {
 
   const restore = async (file: File | undefined) => {
     if (!file) return;
-    if (!confirm('Restoring replaces everything currently in the app with the backup. Continue?')) return;
+    if (!confirm('Restoring replaces everything in the app, on all your signed-in devices, with the backup. Continue?')) return;
     try {
       await restoreBackup(JSON.parse(await file.text()));
       setMessage('Backup restored.');
@@ -424,13 +472,13 @@ function DataSettings() {
     await deleteAllData();
     setConfirming(false);
     setConfirmText('');
-    setMessage('All entries deleted from this device.');
+    setMessage('All entries deleted, on all your signed-in devices.');
   };
 
   return (
     <section className="card">
       <h2>Your data</h2>
-      <p className="muted">Backups never include your API key. Save a backup file to move your entries to another device or keep a copy.</p>
+      <p className="muted">Your entries sync on their own, so backups are just a copy to keep. They never include your API key.</p>
       <div className="row wrap">
         <button className="btn" onClick={backup}>
           Save backup file
@@ -450,7 +498,7 @@ function DataSettings() {
         ) : (
           <>
             <label className="field">
-              <span className="label">This permanently deletes every episode, check-in, custom trigger, and saved medication. Type DELETE to confirm.</span>
+              <span className="label">This permanently deletes every episode, check-in, custom trigger, and saved medication, on all your signed-in devices. Type DELETE to confirm.</span>
               <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
             </label>
             <div className="row">

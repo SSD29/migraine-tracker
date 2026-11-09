@@ -5,6 +5,7 @@ import {
   confirmOngoing,
   db,
   discardEpisode,
+  checkinId,
   endEpisode,
   isMedication,
   logMedication,
@@ -117,7 +118,7 @@ export function Home({ openEpisode, openCheckin, openDescribe }: Props) {
   const now = useNow();
   const today = localDateKey(now);
   const ongoing = useLiveQuery(ongoingEpisode, []);
-  const checkin = useLiveQuery(() => db.checkins.get(today), [today]);
+  const checkin = useLiveQuery(() => db.checkins.get(checkinId(today)), [today]);
   const recent = useLiveQuery(() => db.episodes.orderBy('startAt').reverse().limit(3).toArray(), []) ?? [];
   const savedMeds = useLiveQuery(() => db.medications.orderBy('order').limit(3).toArray(), []) ?? [];
   const [toast, setToast] = useState<Toast | null>(null);

@@ -65,6 +65,7 @@ export interface Factor {
 }
 
 export interface DailyCheckin {
+  id: string; // checkinId(date): one per day, shared across devices
   date: string; // local YYYY-MM-DD
   sleepHours?: number;
   stress?: number; // 1–5

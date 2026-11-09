@@ -1,6 +1,6 @@
 // Optional weather context from Open-Meteo (free, no key, non-commercial use).
 // Only an approximate location and the entry's time are sent; entries themselves never leave the device.
-import { db } from './db';
+import { checkinId, db } from './db';
 import { localDateKey, nowIso, parseDateKey } from './dates';
 import { storage } from './lock';
 import type { WeatherSnapshot } from './types';
@@ -124,12 +124,12 @@ export async function attachEpisodeWeather(id: string, coords?: Coords) {
 
 export async function attachCheckinWeather(date: string, coords?: Coords) {
   if (!weatherEnabled()) return false;
-  const c = await db.checkins.get(date);
+  const c = await db.checkins.get(checkinId(date));
   if (!c || c.weather) return false;
   try {
     const weather = await fetchWeather(checkinWeatherTime(date), coords);
     if (!weather) return false;
-    await db.checkins.update(date, { weather });
+    await db.checkins.update(c.id, { weather });
     return true;
   } catch {
     return false;
